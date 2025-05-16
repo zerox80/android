@@ -44,6 +44,12 @@ class ReleaseNotesViewModel(
     companion object {
         val releaseNotesList = listOf(
             ReleaseNote(
+                title = R.string.release_notes_title,
+                subtitle = R.string.release_notes_initial_release,
+                type = ReleaseNoteType.ENHANCEMENT
+            ),
+        /*
+            ReleaseNote(
                 title = R.string.release_notes_4_5_0_title_quota_improvements,
                 subtitle = R.string.release_notes_4_5_0_subtitle_quota_improvements,
                 type = ReleaseNoteType.ENHANCEMENT
@@ -73,6 +79,7 @@ class ReleaseNotesViewModel(
                 subtitle = R.string.release_notes_bugfixes_subtitle,
                 type = ReleaseNoteType.BUGFIX
             ),
+        */
         )
     }
 }

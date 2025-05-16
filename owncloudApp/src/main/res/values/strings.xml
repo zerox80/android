@@ -741,10 +741,13 @@
     <string name="release_notes_4_5_0_subtitle_feedback_in_previews">Added feedback when (un)setting av. offline in all previews and updated options menu depending on file status</string>
     <string name="release_notes_4_5_0_title_quota_improvements">Improvements in storage occupation display</string>
     <string name="release_notes_4_5_0_subtitle_quota_improvements">Storage occupation refreshed frequently in file and refresh operations and available in accounts manager view, besides of drawer menu</string>
-    <string name="release_notes_4_5_0_title_light_users">Infinite Scale Users Light</string>
-    <string name="release_notes_4_5_0_subtitle_light_users">Infinite Scale Users Light (users without personal space) are now supported in the app</string>
+    <string name="release_notes_4_5_0_title_light_users">Users Light</string>
+    <string name="release_notes_4_5_0_subtitle_light_users">Users Light (users without personal space) are now supported in the app</string>
     <string name="release_notes_4_5_1_title_strange_behaviour_apps_provider">Fix for files creation via app providers</string>
     <string name="release_notes_4_5_1_subtitle_strange_behaviour_apps_provider">Files are now opened correctly when they are created using app providers</string>
+    <string name="release_notes_title">OpenCloud Client</string>
+    <string name="release_notes_initial_release">Welcome to the initial release</string>
+
 
     <!-- Open in web -->
     <string name="ic_action_open_in_web">Open in web</string>
@@ -754,7 +757,7 @@
     <string name="open_in_web_error_too_early">The requested file is not yet available, please try again later.</string>
 
     <!-- oCIS accounts warning -->
-    <string name="ocis_accounts_warning_title">Infinite Scale accounts warning</string>
+    <string name="ocis_accounts_warning_title">Accounts warning</string>
     <string name="ocis_accounts_warning_message">Please remove the account and log in again to get the spaces feature.</string>
     <string name="ocis_accounts_warning_checkbox_message">Don\'t show again</string>
     <string name="ocis_accounts_warning_button">Understood</string>
