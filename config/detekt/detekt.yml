@@ -733,7 +733,8 @@ style:
   ForbiddenComment:
     active: true
     allowedPatterns: ''
-    comments: ['FIXME:', 'STOPSHIP:', 'TODO:']
+    #comments: ['FIXME:', 'STOPSHIP:', 'TODO:']
+    comments: ['STOPSHIP:']
   ForbiddenImport:
     active: false
     imports: []

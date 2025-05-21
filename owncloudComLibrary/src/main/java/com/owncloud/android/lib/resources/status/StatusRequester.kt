@@ -127,6 +127,6 @@ internal class StatusRequester {
          */
         private const val TRY_CONNECTION_TIMEOUT = 5_000L
         private const val NODE_INSTALLED = "installed"
-        private const val NODE_VERSION = "version"
+        private const val NODE_VERSION = "productversion"
     }
 }

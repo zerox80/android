@@ -148,7 +148,7 @@ class OCRemoteServerInfoDataSourceTest {
 
     @Test(expected = OwncloudVersionNotSupportedException::class)
     fun `getRemoteStatus throws exception when ownCloud version is not supported`() {
-        val expectedValue = remoteServerInfo.copy(ownCloudVersion = OwnCloudVersion("9.0.0"))
+        val expectedValue = remoteServerInfo.copy(ownCloudVersion = OwnCloudVersion("0.0.2"))
         prepareRemoteStatusToBeRetrieved(expectedValue)
 
         ocRemoteServerInfoDatasource.getRemoteStatus(OC_SECURE_SERVER_INFO_BASIC_AUTH.baseUrl)

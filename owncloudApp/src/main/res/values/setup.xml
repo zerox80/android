@@ -2,19 +2,19 @@
 <resources>
 
     <!-- App name and other strings-->
-    <string name="app_name" formatted="false">ownCloud</string>
-    <string name="account_type" formatted="false">owncloud</string>    <!-- better if was a domain name; but changing it now would require migrate accounts when the app is updated -->
-    <string name="authority" formatted="false">org.owncloud</string>
-    <string name="document_provider_authority" formatted="false">org.owncloud.documents</string>
-    <string name="file_provider_authority" formatted="false">org.owncloud.files</string>
-    <string name="search_suggest_authority" formatted="false">org.owncloud.search.users_and_groups</string>
-    <string name="search_suggest_intent_action" formatted="false">org.owncloud.search.users_and_groups.action.SHARE_WITH</string>
-    <string name="db_file" formatted="false">owncloud.db</string>
-    <string name="db_name" formatted="false">ownCloud</string>
-    <string name="data_folder" formatted="false">owncloud</string>
-    <string name="log_name" formatted="false">Owncloud_</string>
-    <string name="default_display_name_for_root_folder" formatted="false">ownCloud</string>
-    <string name="user_agent">Mozilla/5.0 (Android) ownCloud-android/%1$s</string>
+    <string name="app_name" formatted="false">OpenCloud</string>
+    <string name="account_type" formatted="false">eu.opencloud</string>
+    <string name="authority" formatted="false">eu.opencloud</string>
+    <string name="document_provider_authority" formatted="false">eu.opencloud.documents</string>
+    <string name="file_provider_authority" formatted="false">eu.opencloud.files</string>
+    <string name="search_suggest_authority" formatted="false">eu.opencloud.search.users_and_groups</string>
+    <string name="search_suggest_intent_action" formatted="false">eu.opencloud.search.users_and_groups.action.SHARE_WITH</string>
+    <string name="db_file" formatted="false">opencloud.db</string>
+    <string name="db_name" formatted="false">OpenCloud</string>
+    <string name="data_folder" formatted="false">opencloud</string>
+    <string name="log_name" formatted="false">OpenCloud_</string>
+    <string name="default_display_name_for_root_folder" formatted="false">OpenCloud</string>
+    <string name="user_agent">Mozilla/5.0 (Android) OpenCloud-android/%1$s</string>
 
     <!-- URLs and flags related -->
     <string name="server_url" formatted="false"></string>
@@ -87,7 +87,7 @@
 
     <!-- constants that must be respected by the authorization server; if changed, the app must be rebuild -->
     <string name="oauth2_redirect_uri_scheme">oc</string>
-    <string name="oauth2_redirect_uri_host">android.owncloud.com</string>
+    <string name="oauth2_redirect_uri_host">android.opencloud.eu</string>
     <string name="oauth2_redirect_uri_path"></string>
     <string name="oauth2_openid_scope">openid offline_access email profile</string>
     <string name="oauth2_openid_prompt">select_account consent</string>
@@ -101,8 +101,8 @@
     <string name="oauth2_url_endpoint_access">index.php/apps/oauth2/api/v1/token</string>
 
     <!-- values that should be pre-agreed between app and authorization server, but can be loaded without rebuilding the app -->
-    <string name="oauth2_client_id">e4rAsNUSIUs0lF4nbv9FmCeUkTlV9GdgTLDH1b5uie7syb90SzEVrbN7HIpmWJeD</string>
-    <string name="oauth2_client_secret">dInFYGV33xKzhbRmpqQltYNdfLdJIfJ9L5ISoKhNoT9qZftpdWSP71VrpGR9pmoD</string>
+    <string name="oauth2_client_id">OpenCloudAndroid</string>
+    <string name="oauth2_client_secret"></string>
 
     <!-- To enable/disable app rate feature -->
     <bool name="enable_rate_me_feature">true</bool>
@@ -137,7 +137,7 @@
     <bool name="enforce_secure_connection">false</bool>
 
     <!-- Deep Link -->
-    <string name="deep_link_uri_schemes">owncloud</string>
+    <string name="deep_link_uri_schemes">opencloud</string>
 
     <!-- Number of max uploads to refresh automatically -->
     <integer name="max_uploads_to_refresh">200</integer>

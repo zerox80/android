@@ -1531,11 +1531,13 @@ class FileDisplayActivity : FileActivity(),
         if (uiResult is UIResult.Success) {
             val capabilities = uiResult.data
             capabilities?.versionString?.let { capabilitiesVersionString ->
-                val ownCloudVersion = OwnCloudVersion(capabilitiesVersionString)
-                if (!ownCloudVersion.isServerVersionSupported) {
-                    Timber.d("Server version not supported")
-                    showRequestAccountChangeNotice(getString(R.string.server_not_supported), true)
-                }
+                //val ownCloudVersion = OwnCloudVersion(capabilitiesVersionString)
+                //if (!ownCloudVersion.isServerVersionSupported) {
+                //    Timber.d("Server version not supported")
+                //    showRequestAccountChangeNotice(getString(R.string.server_not_supported), true)
+                //}
+                // FIXME: Removed this for now. The account wizard does a version check?
+                // FIXME: Plus we should check productversion not versionString
             }
         }
     }

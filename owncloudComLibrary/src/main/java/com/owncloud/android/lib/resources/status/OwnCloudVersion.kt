@@ -55,6 +55,7 @@ class OwnCloudVersion(version: String) : Comparable<OwnCloudVersion>, Parcelable
         get() = mVersion >= MINIMUM_VERSION_WITH_WRITE_ONLY_PUBLIC_SHARING
 
     init {
+        Timber.d("From server OpenCloudVersion=" + version);
         var versionToParse = version
         mVersion = 0
         isVersionValid = false
@@ -119,7 +120,7 @@ class OwnCloudVersion(version: String) : Comparable<OwnCloudVersion>, Parcelable
             }
             i++
         }
-
+        Timber.d("versionValue="+ versionValue + " "+"%x".format(versionValue));
         return versionValue
     }
 
@@ -132,9 +133,9 @@ class OwnCloudVersion(version: String) : Comparable<OwnCloudVersion>, Parcelable
     }
 
     companion object {
-        private const val MINIMUN_VERSION_SUPPORTED = 0xA000000 // 10.0.0
+        private const val MINIMUN_VERSION_SUPPORTED = 0x02020000
 
-        private const val MINIMUM_VERSION_WITH_WRITE_ONLY_PUBLIC_SHARING = 0xA000100 // 10.0.1
+        private const val MINIMUM_VERSION_WITH_WRITE_ONLY_PUBLIC_SHARING = 0x02020000
 
         private const val INVALID_ZERO_VERSION = "0.0.0"
 

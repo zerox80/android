@@ -47,7 +47,7 @@ import java.util.Map;
  */
 public class DisplayUtils {
 
-    private static final String OWNCLOUD_APP_NAME = "ownCloud";
+    private static final String OWNCLOUD_APP_NAME = "OpenCloud";
 
     private static final String[] sizeSuffixes = {"B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
     private static final int[] sizeScales = {0, 0, 1, 1, 1, 2, 2, 2, 2};
