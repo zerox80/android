@@ -33,7 +33,7 @@
     <!-- Colors -->
     <color name="login_text_color">@color/white</color>
     <color name="login_text_hint_color">#dddddd</color>
-    <color name="login_background_color">@color/owncloud_blue</color>
+    <color name="login_background_color">@color/opencloud_petrol</color>
     <color name="login_connection_text_color">@color/white</color>
     <color name="login_credentials_text_color">@color/white</color>
     <color name="login_button_background_color">@color/white</color>
@@ -44,7 +44,7 @@
     <color name="primary_button_text_color">@color/white</color>
     <color name="secondary_button_background_color">#D6D7D7</color>
     <color name="secondary_button_text_color">@color/black</color>
-    <color name="drawer_header_color">@color/owncloud_blue_accent</color>
+    <color name="drawer_header_color">@color/opencloud_petrol_accent</color>
     <color name="spaces_card_background_color">#edf3fa</color>
     <color name="search_view_background_color">@color/actionbar_start_color</color>
 

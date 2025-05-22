@@ -6,7 +6,7 @@
     android:viewportHeight="50">
 
     <path
-        android:fillColor="@color/owncloud_blue"
+        android:fillColor="@color/opencloud_petrol"
         android:fillType="evenOdd"
         android:pathData="M0.71846,25.0022 C0.71846,27.0587,16.2849,40.7503,16.2849,40.7503
 C17.3103,41.6648,19.2682,42.41,20.6466,42.41 L44.2977,42.41
