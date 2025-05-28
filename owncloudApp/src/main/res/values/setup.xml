@@ -108,7 +108,7 @@
     <bool name="enable_rate_me_feature">true</bool>
 
     <!-- Login background -->
-    <bool name="use_login_background_image">true</bool>
+    <bool name="use_login_background_image">false</bool>
 
     <!-- Drawer menu -->
     <bool name="use_drawer_background_header">true</bool>
