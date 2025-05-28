@@ -113,7 +113,7 @@
 
     <!-- Transparent style for the app bar -->
     <style name="ownCloud.Appbar.Transparent" parent="ThemeOverlay.AppCompat.Dark.ActionBar">
-        <item name="colorPrimary">@color/owncloud_blue_transparent</item>
+        <item name="colorPrimary">@color/opencloud_petrol_transparent</item>
     </style>
 
     <!-- MORE styles -->

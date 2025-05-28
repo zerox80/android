@@ -122,7 +122,7 @@ class PreviewImageActivity : FileActivity(),
                 setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
             }
         }
-        window.statusBarColor = ContextCompat.getColor(this, R.color.owncloud_blue_dark_transparent)
+        window.statusBarColor = ContextCompat.getColor(this, R.color.opencloud_petrol_dark_transparent)
         localBroadcastManager = LocalBroadcastManager.getInstance(this)
     }
 
