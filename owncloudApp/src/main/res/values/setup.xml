@@ -112,7 +112,7 @@
 
     <!-- Drawer menu -->
     <bool name="use_drawer_background_header">true</bool>
-    <bool name="use_drawer_logo">true</bool>
+    <bool name="use_drawer_logo">false</bool>
     <string name="drawer_link_label"></string>
     <string name="drawer_link"></string>
 
