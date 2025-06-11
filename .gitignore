@@ -32,4 +32,4 @@ lint-*ml
 !.idea/codeStyles/
 
 # Prevent exidental commits of build folders
-owncloudApp/release
+opencloudApp/release

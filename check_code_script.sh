@@ -11,7 +11,7 @@ check_license_in_file() {
 }
 
 
-for DIRS in owncloudApp/src owncloudData/src owncloudDomain/src owncloudTestUtil/src
+for DIRS in opencloudApp/src opencloudData/src opencloudDomain/src opencloudTestUtil/src
 do
     for FILE in $(find $DIRS -name "*.java" -o -name "*.kt")
     do

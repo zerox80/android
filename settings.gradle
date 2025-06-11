@@ -1,1 +1,1 @@
-include ':owncloudApp', ':owncloudDomain', ':owncloudData', ':owncloudComLibrary', ':owncloudTestUtil'
+include ':opencloudApp', ':opencloudDomain', ':opencloudData', ':opencloudComLibrary', ':opencloudTestUtil'
