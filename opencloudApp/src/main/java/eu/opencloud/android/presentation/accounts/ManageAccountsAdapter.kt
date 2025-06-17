@@ -156,7 +156,7 @@ class ManageAccountsAdapter(
 
     private fun updateQuota(quotaText: TextView, quotaBar: ProgressBar, userQuota: UserQuota, context: Context) {
         when {
-            userQuota.available == -4L -> { // Light users (oCIS)
+            userQuota.available == -4L -> { // Light users
                 quotaBar.visibility = View.GONE
                 quotaText.text = context.getString(R.string.drawer_unavailable_used_storage)
             }
@@ -171,7 +171,7 @@ class ManageAccountsAdapter(
                     progress = 100
                     progressTintList = ColorStateList.valueOf(resources.getColor(R.color.quota_exceeded))
                 }
-                if (userQuota.state == UserQuotaState.EXCEEDED) { // oCIS
+                if (userQuota.state == UserQuotaState.EXCEEDED) {
                     quotaText.text = String.format(
                         context.getString(R.string.manage_accounts_quota),
                         DisplayUtils.bytesToHumanReadable(userQuota.used, context, false),

@@ -756,11 +756,11 @@
     <string name="open_in_web_error_not_supported">There are no apps that support this file type.</string>
     <string name="open_in_web_error_too_early">The requested file is not yet available, please try again later.</string>
 
-    <!-- oCIS accounts warning -->
-    <string name="ocis_accounts_warning_title">Accounts warning</string>
-    <string name="ocis_accounts_warning_message">Please remove the account and log in again to get the spaces feature.</string>
-    <string name="ocis_accounts_warning_checkbox_message">Don\'t show again</string>
-    <string name="ocis_accounts_warning_button">Understood</string>
+    <!-- accounts warning -->
+    <string name="server_accounts_warning_title">Accounts warning</string>
+    <string name="server_accounts_warning_message">Please remove the account and log in again to get the spaces feature.</string>
+    <string name="server_accounts_warning_checkbox_message">Don\'t show again</string>
+    <string name="server_accounts_warning_button">Understood</string>
 
     <string name="tab_label_ascii">Text</string>
 

@@ -237,7 +237,7 @@ public class ReceiveExternalFilesActivity extends FileActivity
                 if (mParents.size() == 1) {
                     updateToolbar(getString(R.string.uploader_top_message));
                 }
-            } else { // OCIS Server
+            } else {
                 if (haveMultiAccount) { // Multi account
                     mListView = findViewById(android.R.id.list);
                     fragmentContainer = findViewById(R.id.fragment_container);

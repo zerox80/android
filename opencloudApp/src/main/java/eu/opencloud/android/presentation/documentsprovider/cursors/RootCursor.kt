@@ -39,7 +39,7 @@ class RootCursor(projection: Array<String>?) : MatrixCursor(projection ?: DEFAUL
             // If the document id is not a number, we will know that it is the time to display the list of spaces for the account
             account.name
         } else {
-            // Root directory of the personal space (oCIS) or "Files" (oC10)
+            // Root directory of the personal space or "Files" (old server)
             manager.getRootPersonalFolder()?.id
         }
 

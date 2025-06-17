@@ -24,8 +24,7 @@ import eu.opencloud.android.domain.files.model.OCFile
 /**
  * Returns the root folder for the shares space.
  *
- * For oC10 accounts returns null
- * For oCIS accounts returns the root folder from Shares jail
+ * returns the root folder from Shares jail
  */
 class GetSharesRootFolderForAccount(
     private val fileRepository: FileRepository

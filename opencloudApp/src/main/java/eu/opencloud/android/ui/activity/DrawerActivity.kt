@@ -230,7 +230,7 @@ abstract class DrawerActivity : ToolbarActivity() {
             if (AccountUtils.isSpacesFeatureAllowedForAccount(baseContext, account, capabilities)) {
                 getBottomNavigationView()?.menu?.get(0)?.title = getString(R.string.bottom_nav_personal)
                 getBottomNavigationView()?.menu?.get(1)?.title = getString(R.string.bottom_nav_shares)
-                getBottomNavigationView()?.menu?.get(1)?.icon = AppCompatResources.getDrawable(this, R.drawable.ic_ocis_shares)
+                getBottomNavigationView()?.menu?.get(1)?.icon = AppCompatResources.getDrawable(this, R.drawable.ic_server_shares)
                 getBottomNavigationView()?.menu?.get(2)?.isVisible = capabilities?.isSpacesProjectsAllowed() == true
             } else {
                 getBottomNavigationView()?.menu?.get(0)?.title = getString(R.string.bottom_nav_files)
@@ -325,7 +325,7 @@ abstract class DrawerActivity : ToolbarActivity() {
 
     private fun onUpdateQuotaIsSuccessful(userQuota: UserQuota) {
         when {
-            userQuota.available == -4L -> { // Light users (oCIS)
+            userQuota.available == -4L -> { // Light users
                 getAccountQuotaText()?.text = getString(R.string.drawer_unavailable_used_storage)
                 getAccountQuotaBar()?.isVisible = false
                 getAccountQuotaStatusText()?.isVisible = false
@@ -347,7 +347,7 @@ abstract class DrawerActivity : ToolbarActivity() {
                     progressTintList = ColorStateList.valueOf(resources.getColor(R.color.quota_exceeded))
                 }
 
-                if (userQuota.state == UserQuotaState.EXCEEDED) { // oCIS
+                if (userQuota.state == UserQuotaState.EXCEEDED) {
                     getAccountQuotaText()?.apply {
                         text = String.format(
                             getString(R.string.drawer_quota),

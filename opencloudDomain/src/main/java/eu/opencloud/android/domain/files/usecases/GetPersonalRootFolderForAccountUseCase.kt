@@ -24,8 +24,7 @@ import eu.opencloud.android.domain.files.model.OCFile
 /**
  * Returns the root folder for the account.
  *
- * For oC10 accounts returns the root folder
- * For oCIS accounts returns the root folder from Personal space
+ * returns the root folder from Personal space
  */
 class GetPersonalRootFolderForAccountUseCase(
     private val fileRepository: FileRepository

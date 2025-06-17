@@ -138,19 +138,19 @@ class MainApp : Application() {
                         val pref = PreferenceManager.getDefaultSharedPreferences(appContext)
                         val clearDataAlreadyTriggered = pref.contains(PREFERENCE_CLEAR_DATA_ALREADY_TRIGGERED)
                         if (clearDataAlreadyTriggered || isNewVersionCode()) {
-                            val dontShowAgainDialogPref = pref.getBoolean(PREFERENCE_KEY_DONT_SHOW_OCIS_ACCOUNT_WARNING_DIALOG, false)
+                            val dontShowAgainDialogPref = pref.getBoolean(PREFERENCE_KEY_DONT_SHOW_SERVER_ACCOUNT_WARNING_DIALOG, false)
                             if (!dontShowAgainDialogPref && shouldShowDialog(activity)) {
                                 val checkboxDialog = activity.layoutInflater.inflate(R.layout.checkbox_dialog, null)
                                 val checkbox = checkboxDialog.findViewById<CheckBox>(R.id.checkbox_dialog)
-                                checkbox.setText(R.string.ocis_accounts_warning_checkbox_message)
+                                checkbox.setText(R.string.server_accounts_warning_checkbox_message)
                                 val builder = AlertDialog.Builder(activity).apply {
                                     setView(checkboxDialog)
-                                    setTitle(R.string.ocis_accounts_warning_title)
-                                    setMessage(R.string.ocis_accounts_warning_message)
+                                    setTitle(R.string.server_accounts_warning_title)
+                                    setMessage(R.string.server_accounts_warning_message)
                                     setCancelable(false)
-                                    setPositiveButton(R.string.ocis_accounts_warning_button) { _, _ ->
+                                    setPositiveButton(R.string.server_accounts_warning_button) { _, _ ->
                                         if (checkbox.isChecked) {
-                                            pref.edit().putBoolean(PREFERENCE_KEY_DONT_SHOW_OCIS_ACCOUNT_WARNING_DIALOG, true).apply()
+                                            pref.edit().putBoolean(PREFERENCE_KEY_DONT_SHOW_SERVER_ACCOUNT_WARNING_DIALOG, true).apply()
                                         }
                                     }
                                 }
@@ -328,7 +328,7 @@ class MainApp : Application() {
 
         const val PREFERENCE_KEY_LAST_SEEN_VERSION_CODE = "lastSeenVersionCode"
 
-        const val PREFERENCE_KEY_DONT_SHOW_OCIS_ACCOUNT_WARNING_DIALOG = "PREFERENCE_KEY_DONT_SHOW_OCIS_ACCOUNT_WARNING_DIALOG"
+        const val PREFERENCE_KEY_DONT_SHOW_SERVER_ACCOUNT_WARNING_DIALOG = "PREFERENCE_KEY_DONT_SHOW_SERVER_ACCOUNT_WARNING_DIALOG"
 
         /**
          * Next methods give access in code to some constants that need to be defined in string resources to be referred

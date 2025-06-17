@@ -51,7 +51,7 @@ class SharesFragment : Fragment() {
     private fun showOrHideEmptyView() {
         with(binding.emptyDataParent) {
             root.isVisible = true
-            listEmptyDatasetIcon.setImageResource(R.drawable.ic_ocis_shares)
+            listEmptyDatasetIcon.setImageResource(R.drawable.ic_server_shares)
             listEmptyDatasetTitle.setText(R.string.shares_list_empty_title)
             listEmptyDatasetSubTitle.setText(R.string.shares_list_empty_subtitle)
         }

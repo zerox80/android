@@ -940,7 +940,7 @@ class MainFileListFragment : Fragment(),
 
             if (fileListUiState.fileListOption.isSharedByLink() && fileListUiState.space != null) {
                 // Temporary solution for shares space
-                listEmptyDatasetIcon.setImageResource(R.drawable.ic_ocis_shares)
+                listEmptyDatasetIcon.setImageResource(R.drawable.ic_server_shares)
                 listEmptyDatasetTitle.setText(R.string.shares_list_empty_title)
                 listEmptyDatasetSubTitle.setText(R.string.shares_list_empty_subtitle)
             } else {

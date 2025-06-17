@@ -270,37 +270,37 @@
             "notNull": true
           },
           {
-            "fieldPath": "ocisProvider.enabled",
+            "fieldPath": "appProvider.enabled",
             "columnName": "enabled",
             "affinity": "INTEGER",
             "notNull": false
           },
           {
-            "fieldPath": "ocisProvider.version",
+            "fieldPath": "appProvider.version",
             "columnName": "version",
             "affinity": "TEXT",
             "notNull": false
           },
           {
-            "fieldPath": "ocisProvider.appsUrl",
+            "fieldPath": "appProvider.appsUrl",
             "columnName": "appsUrl",
             "affinity": "TEXT",
             "notNull": false
           },
           {
-            "fieldPath": "ocisProvider.openUrl",
+            "fieldPath": "appProvider.openUrl",
             "columnName": "openUrl",
             "affinity": "TEXT",
             "notNull": false
           },
           {
-            "fieldPath": "ocisProvider.openWebUrl",
+            "fieldPath": "appProvider.openWebUrl",
             "columnName": "openWebUrl",
             "affinity": "TEXT",
             "notNull": false
           },
           {
-            "fieldPath": "ocisProvider.newUrl",
+            "fieldPath": "appProvider.newUrl",
             "columnName": "newUrl",
             "affinity": "TEXT",
             "notNull": false
