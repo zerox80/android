@@ -97,7 +97,7 @@ internal class StatusRequester {
         } else if (!respJSON.getBoolean(NODE_INSTALLED)) {
             RemoteOperationResult(RemoteOperationResult.ResultCode.INSTANCE_NOT_CONFIGURED)
         } else {
-            val ocVersion = OpenCloudVersion(respJSON.getString(NODE_VERSION))
+            val ocVersion = OpenCloudVersion(respJSON.getString(NODE_VERSION), respJSON.getString(NODE_PRODUCTVERSION))
             // the version object will be returned even if the version is invalid, no error code;
             // every app will decide how to act if (ocVersion.isVersionValid() == false)
             val result: RemoteOperationResult<RemoteServerInfo> =
@@ -127,6 +127,7 @@ internal class StatusRequester {
          */
         private const val TRY_CONNECTION_TIMEOUT = 5_000L
         private const val NODE_INSTALLED = "installed"
-        private const val NODE_VERSION = "productversion"
+        private const val NODE_VERSION = "version"
+        private const val NODE_PRODUCTVERSION = "productversion"
     }
 }

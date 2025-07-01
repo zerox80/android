@@ -823,7 +823,7 @@ class PublicShareDialogFragment : DialogFragment() {
      */
     private fun updateInputFormAccordingToServerCapabilities() {
         val serverVersion = capabilities?.versionString?.let {
-            OpenCloudVersion(it)
+            OpenCloudVersion(it, it) // FIXME: check productversion as second parameter, not versionstring
         }
 
         // Show keyboard to fill the public share name

@@ -57,7 +57,7 @@ class OCRemoteServerInfoDataSourceTest {
     private val ocClientMocked: OpenCloudClient = mockk(relaxed = true)
 
     private val remoteServerInfo = RemoteServerInfo(
-        openCloudVersion = OpenCloudVersion(OC_SECURE_SERVER_INFO_BASIC_AUTH.openCloudVersion),
+        openCloudVersion = OpenCloudVersion(OC_SECURE_SERVER_INFO_BASIC_AUTH.openCloudVersion, "2.0.0"),
         baseUrl = OC_SECURE_SERVER_INFO_BASIC_AUTH.baseUrl,
         isSecureConnection = OC_SECURE_SERVER_INFO_BASIC_AUTH.isSecureConnection
     )
@@ -148,7 +148,7 @@ class OCRemoteServerInfoDataSourceTest {
 
     @Test(expected = OpencloudVersionNotSupportedException::class)
     fun `getRemoteStatus throws exception when openCloud version is not supported`() {
-        val expectedValue = remoteServerInfo.copy(openCloudVersion = OpenCloudVersion("0.0.2"))
+        val expectedValue = remoteServerInfo.copy(openCloudVersion = OpenCloudVersion("0.0.2", ""))
         prepareRemoteStatusToBeRetrieved(expectedValue)
 
         ocRemoteServerInfoDatasource.getRemoteStatus(OC_SECURE_SERVER_INFO_BASIC_AUTH.baseUrl)
@@ -156,7 +156,7 @@ class OCRemoteServerInfoDataSourceTest {
 
     @Test
     fun `getRemoteStatus returns RemoteServerInfo with hidden openCloud version`() {
-        val expectedValue = remoteServerInfo.copy(openCloudVersion = OpenCloudVersion(""))
+        val expectedValue = remoteServerInfo.copy(openCloudVersion = OpenCloudVersion("", ""))
         prepareRemoteStatusToBeRetrieved(expectedValue)
 
         ocRemoteServerInfoDatasource.getRemoteStatus(OC_SECURE_SERVER_INFO_BASIC_AUTH.baseUrl)

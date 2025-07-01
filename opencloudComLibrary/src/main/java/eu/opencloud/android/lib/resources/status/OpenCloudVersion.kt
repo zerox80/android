@@ -29,7 +29,7 @@ import android.os.Parcel
 import android.os.Parcelable
 import timber.log.Timber
 
-class OpenCloudVersion(version: String) : Comparable<OpenCloudVersion>, Parcelable {
+class OpenCloudVersion(version: String, productversion: String) : Comparable<OpenCloudVersion>, Parcelable {
 
     // format is in version
     // 0xAABBCCDD
@@ -41,6 +41,8 @@ class OpenCloudVersion(version: String) : Comparable<OpenCloudVersion>, Parcelab
 
     var isVersionHidden: Boolean = false
 
+    var isProductversionValid: Boolean = false
+
     val version: String
         get() = if (isVersionValid) {
             toString()
@@ -49,10 +51,12 @@ class OpenCloudVersion(version: String) : Comparable<OpenCloudVersion>, Parcelab
         }
 
     val isServerVersionSupported: Boolean
-        get() = mVersion >= MINIMUN_VERSION_SUPPORTED
+        get() = isProductversionValid
+        //get() = mVersion >= MINIMUN_VERSION_SUPPORTED
 
     val isPublicSharingWriteOnlySupported: Boolean
-        get() = mVersion >= MINIMUM_VERSION_WITH_WRITE_ONLY_PUBLIC_SHARING
+        get() = isProductversionValid
+        //get() = mVersion >= MINIMUM_VERSION_WITH_WRITE_ONLY_PUBLIC_SHARING
 
     init {
         Timber.d("From server OpenCloudVersion=" + version);
@@ -60,6 +64,8 @@ class OpenCloudVersion(version: String) : Comparable<OpenCloudVersion>, Parcelab
         mVersion = 0
         isVersionValid = false
         isVersionHidden = version.isBlank()
+        // FIXME: Fix all the functions creating an OpenCloudVersion(...):
+        isProductversionValid = !productversion.isBlank()
         val countDots = versionToParse.length - versionToParse.replace(".", "").length
 
         // Complete the version. Version must have 3 dots
@@ -133,10 +139,6 @@ class OpenCloudVersion(version: String) : Comparable<OpenCloudVersion>, Parcelab
     }
 
     companion object {
-        private const val MINIMUN_VERSION_SUPPORTED = 0x02020000
-
-        private const val MINIMUM_VERSION_WITH_WRITE_ONLY_PUBLIC_SHARING = 0x02020000
-
         private const val INVALID_ZERO_VERSION = "0.0.0"
 
         private const val MAX_DOTS = 3
