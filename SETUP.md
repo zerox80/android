@@ -36,9 +36,9 @@ Next steps will assume you have a Github account and that you will get the code 
 * Open a terminal and go on with the next steps in it.
 * Clone your forked repository: ```git clone https://github.com/YOURGITHUBNAME/android.git```.
 * Move to the project folder with ```cd android```.
-* Fetch and apply any changes from your remote branch 'master': ```git fetch``` + ```git rebase```
+* Fetch and apply any changes from your remote branch 'main': ```git fetch``` + ```git rebase```
 * Make official OpenCloud repo known as upstream: ```git remote add upstream https://github.com/opencloud-eu/android.git```
-* Make sure to get and apply the latest changes from official android/master branch: ```git fetch upstream``` + ```git rebase upstream/master```
+* Make sure to get and apply the latest changes from official android/main branch: ```git fetch upstream``` + ```git rebase upstream/main```
 
 At this point you can continue using different tools to build the project. Section 2 and 3 describe the existing alternatives.
 
@@ -69,7 +69,7 @@ The first time the Gradle wrapper is called, the correct Gradle version will be 
 The generated APK file is saved in android/build/outputs/apk as android-debug.apk
 
 
-[0]: https://github.com/opencloud-eu/android/blob/master/CONTRIBUTING.md
+[0]: https://github.com/opencloud-eu/android/blob/main/CONTRIBUTING.md
 [1]: https://git-scm.com/
 [2]: https://git-scm.com/downloads
 [3]: https://developer.android.com/sdk/index.html
