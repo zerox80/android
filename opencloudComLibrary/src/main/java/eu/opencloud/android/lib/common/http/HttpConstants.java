@@ -52,6 +52,19 @@ public class HttpConstants {
     public static final String ACCEPT_ENCODING_IDENTITY = "identity";
     public static final String OC_FILE_REMOTE_ID = "OC-FileId";
 
+    // TUS protocol headers
+    public static final String TUS_RESUMABLE = "Tus-Resumable";
+    public static final String TUS_VERSION = "Tus-Version";
+    public static final String TUS_EXTENSION = "Tus-Extension";
+    public static final String TUS_MAX_SIZE = "Tus-Max-Size";
+    public static final String UPLOAD_OFFSET = "Upload-Offset";
+    public static final String UPLOAD_LENGTH = "Upload-Length";
+    public static final String UPLOAD_METADATA = "Upload-Metadata";
+    public static final String UPLOAD_DEFER_LENGTH = "Upload-Defer-Length";
+    public static final String UPLOAD_CONCAT = "Upload-Concat";
+    public static final String UPLOAD_CHECKSUM = "Upload-Checksum";
+    public static final String UPLOAD_EXPIRES = "Upload-Expires";
+
     // OAuth
     public static final String OAUTH_HEADER_AUTHORIZATION_CODE = "code";
     public static final String OAUTH_HEADER_GRANT_TYPE = "grant_type";
@@ -70,6 +83,7 @@ public class HttpConstants {
     public static final String CONTENT_TYPE_JSON = "application/json";
     public static final String CONTENT_TYPE_WWW_FORM = "application/x-www-form-urlencoded";
     public static final String CONTENT_TYPE_JRD_JSON = "application/jrd+json";
+    public static final String CONTENT_TYPE_OFFSET_OCTET_STREAM = "application/offset+octet-stream";
 
     /***********************************************************************************************************
      ************************************************ ARGUMENTS NAMES ********************************************
@@ -82,6 +96,7 @@ public class HttpConstants {
      ***********************************************************************************************************/
 
     public static final String VALUE_FORMAT = "json";
+    public static final String TUS_RESUMABLE_VERSION_1_0_0 = "1.0.0";
 
     /***********************************************************************************************************
      ************************************************ STATUS CODES *********************************************
@@ -137,6 +152,8 @@ public class HttpConstants {
     public static final int HTTP_USE_PROXY = 305;
     // 307 Temporary Redirect (HTTP/1.1 - RFC 2616)
     public static final int HTTP_TEMPORARY_REDIRECT = 307;
+    // 308 Permanent Redirect (HTTP/1.1 - RFC 7538)
+    public static final int HTTP_PERMANENT_REDIRECT = 308;
 
     /**
      * 4xx Client Error

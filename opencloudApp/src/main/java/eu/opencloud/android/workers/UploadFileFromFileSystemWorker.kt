@@ -55,6 +55,10 @@ import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperatio
 import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation
 import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation.Companion.CHUNK_SIZE
 import eu.opencloud.android.lib.resources.files.services.implementation.OCChunkService
+import eu.opencloud.android.lib.resources.files.tus.CheckTusSupportRemoteOperation
+import eu.opencloud.android.lib.resources.files.tus.CreateTusUploadRemoteOperation
+import eu.opencloud.android.lib.resources.files.tus.GetTusUploadOffsetRemoteOperation
+import eu.opencloud.android.lib.resources.files.tus.PatchTusUploadChunkRemoteOperation
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
 import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
@@ -67,6 +71,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import timber.log.Timber
 import java.io.File
+import java.io.FileInputStream
+import java.security.MessageDigest
 
 class UploadFileFromFileSystemWorker(
     private val appContext: Context,
@@ -123,6 +129,161 @@ class UploadFileFromFileSystemWorker(
             showNotification(throwable)
             updateUploadsDatabaseWithResult(throwable)
             Result.failure()
+        }
+    }
+
+    private fun computeSha256Hex(path: String): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        FileInputStream(path).use { fis ->
+            val buf = ByteArray(1024 * 1024)
+            while (true) {
+                val read = fis.read(buf)
+                if (read <= 0) break
+                md.update(buf, 0, read)
+            }
+        }
+        return md.digest().joinToString("") { b -> "%02x".format(b) }
+    }
+
+    private fun uploadViaTus(client: OpenCloudClient): Boolean {
+        try {
+            Timber.d("TUS: entering uploadViaTus for %s size=%d", uploadPath, fileSize)
+            // 1) Create or reuse TUS upload URL
+            var tusUrl = ocTransfer.tusUploadUrl
+            if (tusUrl.isNullOrBlank()) {
+                val filename = File(uploadPath).name
+                val sha256 = try { computeSha256Hex(fileSystemPath) } catch (e: Exception) { Timber.w(e, "SHA-256 computation failed"); "" }
+                val metadata = linkedMapOf(
+                    "filename" to filename,
+                    "mimetype" to mimetype,
+                    "mtime" to lastModified
+                )
+                if (sha256.isNotEmpty()) {
+                    metadata["checksum"] = "sha256 $sha256"
+                }
+                // Without explicit capability info, avoid creation-with-upload to maximize compatibility
+                val useCreationWithUpload = false
+
+                Timber.d(
+                    "TUS: creating upload resource (filename=%s) length=%d creation-with-upload=%s",
+                    filename, fileSize, useCreationWithUpload
+                )
+
+                val createOperation = CreateTusUploadRemoteOperation(
+                    file = File(fileSystemPath),
+                    remotePath = uploadPath,
+                    mimetype = mimetype,
+                    metadata = metadata,
+                    useCreationWithUpload = useCreationWithUpload,
+                    firstChunkSize = null,
+                    tusUrl = ""
+                ).execute(client)
+
+                if (!createOperation.isSuccess || createOperation.data.isNullOrBlank()) {
+                    Timber.w("TUS create failed, falling back to WebDAV")
+                    return false
+                }
+                tusUrl = createOperation.data
+                Timber.d("TUS: created upload at %s", tusUrl)
+                transferRepository.updateTusState(
+                    id = uploadIdInStorageManager,
+                    tusUploadUrl = tusUrl,
+                    tusUploadOffset = 0L,
+                    tusUploadLength = fileSize,
+                    tusUploadMetadata = "filename=$filename;mimetype=$mimetype${if (sha256.isNotEmpty()) ";checksum=sha256 $sha256" else ""}",
+                    tusUploadChecksum = if (sha256.isNotEmpty()) "sha256:$sha256" else null,
+                    tusResumableVersion = "1.0.0",
+                    tusUploadExpires = null,
+                    tusUploadConcat = null,
+                )
+            }
+
+            // 2) Get current offset (resume capable)
+            val offsetRes = GetTusUploadOffsetRemoteOperation(tusUrl!!).execute(client)
+            var offset = if (offsetRes.isSuccess && offsetRes.data != null && offsetRes.data!! >= 0) offsetRes.data!! else 0L
+            Timber.d("TUS resume offset: %d / %d", offset, fileSize)
+
+            // 3) PATCH loop with basic retry/resume on transient failures
+            var consecutiveFailures = 0
+            val maxRetries = 5
+            val serverMaxChunk: Long? = null
+            while (offset < fileSize) {
+                val remaining = fileSize - offset
+                val limitByServer = serverMaxChunk ?: Long.MAX_VALUE
+                val chunk = minOf(CHUNK_SIZE, remaining, limitByServer)
+                Timber.d("TUS using chunk=%d remaining=%d", chunk, remaining)
+
+                val patchOp = PatchTusUploadChunkRemoteOperation(
+                    localPath = fileSystemPath,
+                    uploadUrl = tusUrl,
+                    offset = offset,
+                    chunkSize = chunk,
+                ).apply {
+                    addDataTransferProgressListener(this@UploadFileFromFileSystemWorker)
+                }
+
+                val patchRes = patchOp.execute(client)
+                if (!patchRes.isSuccess || patchRes.data == null || patchRes.data!! < offset) {
+                    Timber.w("TUS PATCH failed at offset %d (retry %d/%d)", offset, consecutiveFailures + 1, maxRetries)
+
+                    // Try to recover by re-checking current offset from server and continue
+                    val recover = try {
+                        val off = GetTusUploadOffsetRemoteOperation(tusUrl!!).execute(client)
+                        if (off.isSuccess && off.data != null && off.data!! >= 0) {
+                            val newOffset = off.data!!
+                            if (newOffset > offset) {
+                                offset = newOffset
+                                transferRepository.updateTusOffset(uploadIdInStorageManager, offset)
+                                consecutiveFailures = 0
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } catch (re: Throwable) {
+                        Timber.w(re, "TUS recover offset check failed")
+                        false
+                    }
+
+                    if (!recover) {
+                        // Backoff before next retry
+                        val delayMs = kotlin.math.min(2000L, 250L shl consecutiveFailures)
+                        try { Thread.sleep(delayMs) } catch (_: InterruptedException) {}
+                        consecutiveFailures++
+                        if (consecutiveFailures >= maxRetries) {
+                            Timber.w("TUS giving up after %d retries at offset %d", maxRetries, offset)
+                            return false
+                        }
+                    }
+
+                    // continue loop (either after recovered offset or after counting a retry)
+                    continue
+                }
+
+                offset = patchRes.data!!
+                transferRepository.updateTusOffset(uploadIdInStorageManager, offset)
+                consecutiveFailures = 0
+            }
+
+            // 4) Completed: clear TUS state
+            transferRepository.updateTusState(
+                id = uploadIdInStorageManager,
+                tusUploadUrl = null,
+                tusUploadOffset = null,
+                tusUploadLength = null,
+                tusUploadMetadata = null,
+                tusUploadChecksum = null,
+                tusResumableVersion = null,
+                tusUploadExpires = null,
+                tusUploadConcat = null,
+            )
+            Timber.i("TUS upload completed for %s", uploadPath)
+            return true
+        } catch (e: Throwable) {
+            Timber.e(e, "TUS upload failed, will fallback to WebDAV")
+            return false
         }
     }
 
@@ -232,10 +393,24 @@ class UploadFileFromFileSystemWorker(
         val isChunkingAllowed = capabilitiesForAccount != null && capabilitiesForAccount.isChunkingAllowed()
         Timber.d("Chunking is allowed: %s, and file size is greater than the minimum chunk size: %s", isChunkingAllowed, fileSize > CHUNK_SIZE)
 
-        if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
-            uploadChunkedFile(client)
+        // Prefer TUS for large files: optimistically try TUS create and let it fail fast if unsupported
+        val usedTus = if (fileSize > CHUNK_SIZE) {
+            Timber.d("Attempting TUS for large upload (size=%d, threshold=%d)", fileSize, CHUNK_SIZE)
+            val ok = uploadViaTus(client)
+            Timber.d("TUS attempt result: %s", if (ok) "success" else "failed")
+            ok
         } else {
-            uploadPlainFile(client)
+            Timber.d("Skipping TUS: file too small (size=%d <= threshold=%d)", fileSize, CHUNK_SIZE)
+            false
+        }
+
+        if (!usedTus) {
+            Timber.d("Proceeding without TUS: %s", if (isChunkingAllowed && fileSize > CHUNK_SIZE) "chunked WebDAV" else "plain WebDAV")
+            if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
+                uploadChunkedFile(client)
+            } else {
+                uploadPlainFile(client)
+            }
         }
     }
 
@@ -397,12 +572,12 @@ class UploadFileFromFileSystemWorker(
     }
 
     companion object {
-        const val KEY_PARAM_ACCOUNT_NAME = "KEY_PARAM_ACCOUNT_NAME"
-        const val KEY_PARAM_BEHAVIOR = "KEY_PARAM_BEHAVIOR"
-        const val KEY_PARAM_LOCAL_PATH = "KEY_PARAM_LOCAL_PATH"
-        const val KEY_PARAM_LAST_MODIFIED = "KEY_PARAM_LAST_MODIFIED"
-        const val KEY_PARAM_UPLOAD_PATH = "KEY_PARAM_UPLOAD_PATH"
-        const val KEY_PARAM_UPLOAD_ID = "KEY_PARAM_UPLOAD_ID"
-        const val KEY_PARAM_REMOVE_LOCAL = "KEY_REMOVE_LOCAL"
+        const val KEY_PARAM_ACCOUNT_NAME: String = "KEY_PARAM_ACCOUNT_NAME"
+        const val KEY_PARAM_BEHAVIOR: String = "KEY_PARAM_BEHAVIOR"
+        const val KEY_PARAM_LOCAL_PATH: String = "KEY_PARAM_LOCAL_PATH"
+        const val KEY_PARAM_LAST_MODIFIED: String = "KEY_PARAM_LAST_MODIFIED"
+        const val KEY_PARAM_UPLOAD_PATH: String = "KEY_PARAM_UPLOAD_PATH"
+        const val KEY_PARAM_UPLOAD_ID: String = "KEY_PARAM_UPLOAD_ID"
+        const val KEY_PARAM_REMOVE_LOCAL: String = "KEY_REMOVE_LOCAL"
     }
 }

@@ -56,6 +56,15 @@ data class OCTransferEntity(
     val transferId: String? = null,
     val spaceId: String? = null,
     val sourcePath: String? = null,
+    // TUS protocol state persistence
+    val tusUploadUrl: String? = null,
+    val tusUploadOffset: Long? = null,
+    val tusUploadLength: Long? = null,
+    val tusUploadMetadata: String? = null,
+    val tusUploadChecksum: String? = null,
+    val tusResumableVersion: String? = null,
+    val tusUploadExpires: Long? = null,
+    val tusUploadConcat: String? = null,
 ) {
     @PrimaryKey(autoGenerate = true)
     var id: Long = 0

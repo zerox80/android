@@ -141,6 +141,38 @@ class OCLocalTransferDataSource(
         transferDao.deleteTransfersWithStatus(TransferStatus.TRANSFER_SUCCEEDED.value)
     }
 
+    // TUS state management
+    override fun updateTusState(
+        id: Long,
+        tusUploadUrl: String?,
+        tusUploadOffset: Long?,
+        tusUploadLength: Long?,
+        tusUploadMetadata: String?,
+        tusUploadChecksum: String?,
+        tusResumableVersion: String?,
+        tusUploadExpires: Long?,
+        tusUploadConcat: String?,
+    ) {
+        transferDao.updateTusState(
+            id = id,
+            tusUploadUrl = tusUploadUrl,
+            tusUploadOffset = tusUploadOffset,
+            tusUploadLength = tusUploadLength,
+            tusUploadMetadata = tusUploadMetadata,
+            tusUploadChecksum = tusUploadChecksum,
+            tusResumableVersion = tusResumableVersion,
+            tusUploadExpires = tusUploadExpires,
+            tusUploadConcat = tusUploadConcat,
+        )
+    }
+
+    override fun updateTusOffset(id: Long, tusUploadOffset: Long?) {
+        transferDao.updateTusOffset(id = id, tusUploadOffset = tusUploadOffset)
+    }
+
+    override fun updateTusUrl(id: Long, tusUploadUrl: String?) {
+        transferDao.updateTusUrl(id = id, tusUploadUrl = tusUploadUrl)
+    }
 
 
     companion object {
@@ -161,6 +193,14 @@ class OCLocalTransferDataSource(
             transferId = transferId,
             spaceId = spaceId,
             sourcePath = sourcePath,
+            tusUploadUrl = tusUploadUrl,
+            tusUploadOffset = tusUploadOffset,
+            tusUploadLength = tusUploadLength,
+            tusUploadMetadata = tusUploadMetadata,
+            tusUploadChecksum = tusUploadChecksum,
+            tusResumableVersion = tusResumableVersion,
+            tusUploadExpires = tusUploadExpires,
+            tusUploadConcat = tusUploadConcat,
         )
         @VisibleForTesting
         fun OCTransfer.toEntity() = OCTransferEntity(
@@ -177,6 +217,14 @@ class OCLocalTransferDataSource(
             transferId = transferId,
             spaceId = spaceId,
             sourcePath = sourcePath,
+            tusUploadUrl = tusUploadUrl,
+            tusUploadOffset = tusUploadOffset,
+            tusUploadLength = tusUploadLength,
+            tusUploadMetadata = tusUploadMetadata,
+            tusUploadChecksum = tusUploadChecksum,
+            tusResumableVersion = tusResumableVersion,
+            tusUploadExpires = tusUploadExpires,
+            tusUploadConcat = tusUploadConcat,
         ).apply { this@toEntity.id?.let { this.id = it } }
     }
 }
