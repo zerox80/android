@@ -60,13 +60,19 @@ class FileListAdapter(
     var files = mutableListOf<Any>()
     private var account: Account? = AccountUtils.getCurrentOpenCloudAccount(context)
     private var fileListOption: FileListOption = FileListOption.ALL_FILES
+    private val disallowTouchesWithOtherWindows =
+        PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+
+    init {
+        setHasStableIds(true)
+    }
 
     fun updateFileList(filesToAdd: List<OCFileWithSyncInfo>, fileListOption: FileListOption) {
 
         val listWithFooter = mutableListOf<Any>()
         listWithFooter.addAll(filesToAdd)
 
-        if (listWithFooter.isNotEmpty()) {
+        if (listWithFooter.isNotEmpty() && !isPickerMode) {
             listWithFooter.add(OCFooterFile(manageListOfFilesAndGenerateText(filesToAdd)))
         }
 
@@ -85,13 +91,22 @@ class FileListAdapter(
         diffResult.dispatchUpdatesTo(this)
     }
 
+    override fun getItemId(position: Int): Long {
+        val item = files.getOrNull(position)
+        return when (item) {
+            is OCFileWithSyncInfo -> item.file.id ?: item.file.remotePath.hashCode().toLong()
+            is OCFooterFile -> Long.MIN_VALUE + position
+            else -> position.toLong()
+        }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
         when (viewType) {
             ViewType.LIST_ITEM.ordinal -> {
                 val binding = ItemFileListBinding.inflate(LayoutInflater.from(parent.context), parent, false)
                 binding.root.apply {
                     tag = ViewType.LIST_ITEM
-                    filterTouchesWhenObscured = PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+                    filterTouchesWhenObscured = disallowTouchesWithOtherWindows
                 }
                 ListViewHolder(binding)
             }
@@ -100,7 +115,7 @@ class FileListAdapter(
                 val binding = GridItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
                 binding.root.apply {
                     tag = ViewType.GRID_IMAGE
-                    filterTouchesWhenObscured = PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+                    filterTouchesWhenObscured = disallowTouchesWithOtherWindows
                 }
                 GridImageViewHolder(binding)
             }
@@ -109,7 +124,7 @@ class FileListAdapter(
                 val binding = GridItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
                 binding.root.apply {
                     tag = ViewType.GRID_ITEM
-                    filterTouchesWhenObscured = PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+                    filterTouchesWhenObscured = disallowTouchesWithOtherWindows
                 }
                 GridViewHolder(binding)
             }
@@ -118,7 +133,7 @@ class FileListAdapter(
                 val binding = ListFooterBinding.inflate(LayoutInflater.from(parent.context), parent, false)
                 binding.root.apply {
                     tag = ViewType.FOOTER
-                    filterTouchesWhenObscured = PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+                    filterTouchesWhenObscured = disallowTouchesWithOtherWindows
                 }
                 FooterViewHolder(binding)
             }
@@ -126,9 +141,11 @@ class FileListAdapter(
 
     override fun getItemCount(): Int = files.size
 
-    override fun getItemId(position: Int): Long = position.toLong()
+    private fun hasFooter(): Boolean = files.lastOrNull() is OCFooterFile
 
-    private fun isFooter(position: Int) = position == files.size.minus(1)
+    private fun isFooter(position: Int) = files.getOrNull(position) is OCFooterFile
+
+    private fun selectableItemCount(): Int = files.size - if (hasFooter()) 1 else 0
 
     override fun getItemViewType(position: Int): Int =
 
@@ -166,33 +183,44 @@ class FileListAdapter(
 
     fun selectAll() {
         // Last item on list is the footer, so that element must be excluded from selection
-        selectAll(totalItems = files.size - 1)
+        selectAll(totalItems = selectableItemCount())
     }
 
     fun selectInverse() {
         // Last item on list is the footer, so that element must be excluded from selection
-        toggleSelectionInBulk(totalItems = files.size - 1)
+        toggleSelectionInBulk(totalItems = selectableItemCount())
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 
         val viewType = getItemViewType(position)
 
+        AccountUtils.getCurrentOpenCloudAccount(context)?.let { currentAccount ->
+            if (currentAccount != account) {
+                account = currentAccount
+            }
+        } ?: run {
+            if (account != null) {
+                account = null
+            }
+        }
+
         if (viewType != ViewType.FOOTER.ordinal) { // Is Item
 
+            val hasActiveSelection = selectedItemCount > 0
             val fileWithSyncInfo = files[position] as OCFileWithSyncInfo
             val file = fileWithSyncInfo.file
             val name = file.fileName
             val fileIcon = holder.itemView.findViewById<ImageView>(R.id.thumbnail).apply {
                 tag = file.id
             }
-            val thumbnail: Bitmap? = file.remoteId?.let { ThumbnailsCacheManager.getBitmapFromDiskCache(file.remoteId) }
+            val thumbnail: Bitmap? = ThumbnailsCacheManager.getBitmapFromDiskCache(file)
 
             holder.itemView.findViewById<LinearLayout>(R.id.ListItemLayout)?.apply {
                 contentDescription = "LinearLayout-$name"
 
                 // Allow or disallow touches with other visible windows
-                filterTouchesWhenObscured = PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+                filterTouchesWhenObscured = disallowTouchesWithOtherWindows
             }
 
             holder.itemView.findViewById<LinearLayout>(R.id.share_icons_layout).isVisible =
@@ -201,26 +229,35 @@ class FileListAdapter(
             holder.itemView.findViewById<ImageView>(R.id.shared_via_users_icon).isVisible =
                 file.sharedWithSharee == true || file.isSharedWithMe
 
-            setSpecificViewHolder(viewType, holder, fileWithSyncInfo, thumbnail)
+            setSpecificViewHolder(viewType, holder, fileWithSyncInfo, thumbnail, hasActiveSelection)
 
             setIconPinAccordingToFilesLocalState(holder.itemView.findViewById(R.id.localFileIndicator), fileWithSyncInfo)
 
             holder.itemView.setOnClickListener {
+                val adapterPosition = holder.bindingAdapterPosition
+                if (adapterPosition == RecyclerView.NO_POSITION) {
+                    return@setOnClickListener
+                }
+                val currentItem = files.getOrNull(adapterPosition) as? OCFileWithSyncInfo ?: return@setOnClickListener
                 listener.onItemClick(
-                    ocFileWithSyncInfo = fileWithSyncInfo,
-                    position = position
+                    ocFileWithSyncInfo = currentItem,
+                    position = adapterPosition
                 )
             }
 
             holder.itemView.setOnLongClickListener {
+                val adapterPosition = holder.bindingAdapterPosition
+                if (adapterPosition == RecyclerView.NO_POSITION) {
+                    return@setOnLongClickListener false
+                }
                 listener.onLongItemClick(
-                    position = position
+                    position = adapterPosition
                 )
             }
             holder.itemView.setBackgroundColor(Color.WHITE)
 
             val checkBoxV = holder.itemView.findViewById<ImageView>(R.id.custom_checkbox).apply {
-                isVisible = getCheckedItems().isNotEmpty()
+                isVisible = hasActiveSelection
             }
 
             if (isSelected(position)) {
@@ -234,6 +271,7 @@ class FileListAdapter(
             if (file.isFolder) {
                 // Folder
                 fileIcon.setImageResource(R.drawable.ic_menu_archive)
+                fileIcon.setBackgroundColor(Color.TRANSPARENT)
             } else {
                 // Set file icon depending on its mimetype. Ask for thumbnail later.
                 fileIcon.setImageResource(MimetypeIconUtil.getFileTypeIconId(file.mimeType, file.fileName))
@@ -241,20 +279,28 @@ class FileListAdapter(
                 if (thumbnail != null) {
                     fileIcon.setImageBitmap(thumbnail)
                 }
-                if (file.needsToUpdateThumbnail && ThumbnailsCacheManager.cancelPotentialThumbnailWork(file, fileIcon)) {
-                    // generate new Thumbnail
-                    val task = ThumbnailsCacheManager.ThumbnailGenerationTask(fileIcon, account)
-                    val asyncDrawable = ThumbnailsCacheManager.AsyncThumbnailDrawable(context.resources, thumbnail, task)
 
-                    // If drawable is not visible, do not update it.
-                    if (asyncDrawable.minimumHeight > 0 && asyncDrawable.minimumWidth > 0) {
-                        fileIcon.setImageDrawable(asyncDrawable)
+                if (file.needsToUpdateThumbnail) {
+                    val canStartTask = ThumbnailsCacheManager.cancelPotentialThumbnailWork(file, fileIcon)
+                    val activeAccount = account
+                    if (activeAccount != null && canStartTask) {
+                        // generate new Thumbnail
+                        val task = ThumbnailsCacheManager.ThumbnailGenerationTask(fileIcon, activeAccount)
+                        val placeholder = thumbnail ?: ThumbnailsCacheManager.mDefaultImg
+                        val asyncDrawable = ThumbnailsCacheManager.AsyncThumbnailDrawable(context.resources, placeholder, task)
+
+                        // If drawable is not visible, do not update it.
+                        if (asyncDrawable.minimumHeight > 0 && asyncDrawable.minimumWidth > 0) {
+                            fileIcon.setImageDrawable(asyncDrawable)
+                        }
+                        ThumbnailsCacheManager.executeThumbnailTask(task, file)
                     }
-                    task.execute(file)
                 }
 
-                if (file.mimeType == "image/png") {
+                if (file.mimeType.equals("image/png", ignoreCase = true)) {
                     fileIcon.setBackgroundColor(ContextCompat.getColor(context, R.color.background_color))
+                } else {
+                    fileIcon.setBackgroundColor(Color.TRANSPARENT)
                 }
             }
 
@@ -270,18 +316,24 @@ class FileListAdapter(
         }
     }
 
-    private fun setSpecificViewHolder(viewType: Int, holder: RecyclerView.ViewHolder, fileWithSyncInfo: OCFileWithSyncInfo, thumbnail: Bitmap?) {
+    private fun setSpecificViewHolder(
+        viewType: Int,
+        holder: RecyclerView.ViewHolder,
+        fileWithSyncInfo: OCFileWithSyncInfo,
+        thumbnail: Bitmap?,
+        hasActiveSelection: Boolean,
+    ) {
         val file = fileWithSyncInfo.file
 
         when (viewType) {
             ViewType.LIST_ITEM.ordinal -> {
                 val view = holder as ListViewHolder
                 view.binding.let {
-                    it.fileListConstraintLayout.filterTouchesWhenObscured = PreferenceUtils.shouldDisallowTouchesWithOtherVisibleWindows(context)
+                    it.fileListConstraintLayout.filterTouchesWhenObscured = disallowTouchesWithOtherWindows
                     it.Filename.text = file.fileName
                     it.fileListSize.text = DisplayUtils.bytesToHumanReadable(file.length, context, true)
                     it.fileListLastMod.text = DisplayUtils.getRelativeTimestamp(context, file.modificationTimestamp)
-                    it.threeDotMenu.isVisible = getCheckedItems().isEmpty()
+                    it.threeDotMenu.isVisible = !hasActiveSelection
                     it.threeDotMenu.contentDescription = context.getString(R.string.content_description_file_operations, file.fileName)
                     if (fileListOption.isAvailableOffline() || (fileListOption.isSharedByLink() && fileWithSyncInfo.space == null)) {
                         it.spacePathLine.path.apply {
@@ -321,7 +373,10 @@ class FileListAdapter(
                 val layoutParams = fileIcon.layoutParams as ViewGroup.MarginLayoutParams
 
                 if (thumbnail == null) {
-                    view.binding.Filename.text = file.fileName
+                    view.binding.Filename.apply {
+                        text = file.fileName
+                        isVisible = true
+                    }
                     // Reset layout params values default
                     manageGridLayoutParams(
                         layoutParams = layoutParams,
@@ -330,6 +385,10 @@ class FileListAdapter(
                         width = context.resources.getDimensionPixelSize(R.dimen.item_file_grid_width),
                     )
                 } else {
+                    view.binding.Filename.apply {
+                        text = ""
+                        isVisible = false
+                    }
                     manageGridLayoutParams(
                         layoutParams = layoutParams,
                         marginVertical = context.resources.getDimensionPixelSize(R.dimen.item_file_image_grid_margin),

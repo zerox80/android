@@ -237,8 +237,7 @@ class ShareFileFragment : Fragment(), ShareUserListAdapter.ShareUserAdapterListe
             )
         )
         if (file!!.isImage) {
-            val remoteId = file?.remoteId.toString()
-            val thumbnail = ThumbnailsCacheManager.getBitmapFromDiskCache(remoteId)
+            val thumbnail = ThumbnailsCacheManager.getBitmapFromDiskCache(file!!)
             if (thumbnail != null) {
                 binding.shareFileIcon.setImageBitmap(thumbnail)
             }
