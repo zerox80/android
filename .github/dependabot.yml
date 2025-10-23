@@ -1,21 +1,69 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
-  - package-ecosystem: "gradle" # See documentation for possible values
-    directory: "/" # Location of package manifests
-    schedule:
-      interval: "daily"
-    labels:
-      - "Dependencies"
-    commit-message:
-      prefix: "feat"
-  - package-ecosystem: "github-actions"
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "gradle"
+    directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+    labels:
+      - "Dependencies"
+      - "Gradle"
     commit-message:
-      prefix: "feat"
+      prefix: "deps"
+      include: "scope"
+    groups:
+      kotlin-stack:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.kotlinx*"
+          - "com.google.devtools.ksp*"
+      androidx-core:
+        patterns:
+          - "androidx*"
+      google-mobile:
+        patterns:
+          - "com.google.*"
+      testing-libraries:
+        patterns:
+          - "junit*"
+          - "androidx.test*"
+          - "androidx.benchmark*"
+          - "io.mockk*"
+      linting:
+        patterns:
+          - "com.pinterest.ktlint*"
+          - "io.gitlab.arturbosch.detekt*"
+  - package-ecosystem: "gradle-wrapper"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    labels:
+      - "Dependencies"
+      - "Gradle Wrapper"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    labels:
+      - "Dependencies"
+      - "CI"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
