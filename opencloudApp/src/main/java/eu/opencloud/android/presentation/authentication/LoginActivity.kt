@@ -603,13 +603,15 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         binding.serverStatusText.text = getString(R.string.auth_getting_authorization)
 
         val clientRegistrationInfo = authenticationViewModel.registerClient.value?.peekContent()?.getStoredData()
+        val fallbackClientId = getString(R.string.oauth2_client_id)
+        val fallbackClientSecret = getString(R.string.oauth2_client_secret).takeUnless { it.isBlank() }
 
-        val clientAuth = if (clientRegistrationInfo?.clientId != null && clientRegistrationInfo.clientSecret != null) {
-            OAuthUtils.getClientAuth(clientRegistrationInfo.clientSecret as String, clientRegistrationInfo.clientId)
+        val registeredClientId = clientRegistrationInfo?.clientId
+        val registeredClientSecret = clientRegistrationInfo?.clientSecret?.takeUnless { it.isBlank() }
 
-        } else {
-            OAuthUtils.getClientAuth(getString(R.string.oauth2_client_secret), getString(R.string.oauth2_client_id))
-        }
+        val clientIdForAuth = registeredClientId ?: fallbackClientId
+        val clientSecretForAuth = registeredClientSecret ?: fallbackClientSecret
+        val clientAuth = OAuthUtils.getClientAuth(clientSecretForAuth, clientIdForAuth)
 
         // Use oidc discovery one, or build an oauth endpoint using serverBaseUrl + Setup string.
         val tokenEndPoint: String
@@ -620,12 +622,21 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         val serverInfo = authenticationViewModel.serverInfo.value?.peekContent()?.getStoredData()
         if (serverInfo is ServerInfo.OIDCServer) {
             tokenEndPoint = serverInfo.oidcServerConfiguration.tokenEndpoint
-            if (serverInfo.oidcServerConfiguration.isTokenEndpointAuthMethodSupportedClientSecretPost()) {
-                clientId = clientRegistrationInfo?.clientId ?: contextProvider.getString(R.string.oauth2_client_id)
-                clientSecret = clientRegistrationInfo?.clientSecret ?: contextProvider.getString(R.string.oauth2_client_secret)
+            val supportsClientSecretPost = serverInfo.oidcServerConfiguration.isTokenEndpointAuthMethodSupportedClientSecretPost()
+            if (clientSecretForAuth != null && supportsClientSecretPost) {
+                clientId = clientIdForAuth
+                clientSecret = clientSecretForAuth
+            } else if (clientSecretForAuth == null) {
+                clientId = clientIdForAuth
             }
         } else {
             tokenEndPoint = "$serverBaseUrl${File.separator}${contextProvider.getString(R.string.oauth2_url_endpoint_access)}"
+            if (clientSecretForAuth != null) {
+                clientId = clientIdForAuth
+                clientSecret = clientSecretForAuth
+            } else {
+                clientId = clientIdForAuth
+            }
         }
 
         val scope = resources.getString(R.string.oauth2_openid_scope)

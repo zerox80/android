@@ -85,13 +85,15 @@ class OAuthUtils {
             )
 
         fun getClientAuth(
-            clientSecret: String,
+            clientSecret: String?,
             clientId: String
-        ): String {
+        ): String? {
+            val safeClientSecret = clientSecret?.takeUnless { it.isBlank() } ?: return null
+
             // From the OAuth2 RFC, client ID and secret should be encoded prior to concatenation and
             // conversion to Base64: https://tools.ietf.org/html/rfc6749#section-2.3.1
             val encodedClientId = URLEncoder.encode(clientId, "utf-8")
-            val encodedClientSecret = URLEncoder.encode(clientSecret, "utf-8")
+            val encodedClientSecret = URLEncoder.encode(safeClientSecret, "utf-8")
             val credentials = "$encodedClientId:$encodedClientSecret"
             return "Basic " + Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
         }

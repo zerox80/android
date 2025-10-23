@@ -32,6 +32,7 @@ import android.accounts.NetworkErrorException;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 
 import eu.opencloud.android.MainApp;
 import eu.opencloud.android.R;
@@ -346,14 +347,15 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
         String clientIdForRequest = null;
         String clientSecretForRequest = null;
 
-        if (clientId == null) {
+        if (TextUtils.isEmpty(clientId)) {
             Timber.d("Client Id not stored. Let's use the hardcoded one");
             clientId = mContext.getString(R.string.oauth2_client_id);
         }
-        if (clientSecret == null) {
+        if (TextUtils.isEmpty(clientSecret)) {
             Timber.d("Client Secret not stored. Let's use the hardcoded one");
             clientSecret = mContext.getString(R.string.oauth2_client_secret);
         }
+        String sanitizedClientSecret = TextUtils.isEmpty(clientSecret) ? null : clientSecret;
 
         if (oidcServerConfigurationUseCaseResult.isSuccess()) {
             Timber.d("OIDC Discovery success. Server discovery info: [ %s ]",
@@ -362,19 +364,28 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             // Use token endpoint retrieved from oidc discovery
             tokenEndpoint = oidcServerConfigurationUseCaseResult.getDataOrNull().getTokenEndpoint();
 
-            if (oidcServerConfigurationUseCaseResult.getDataOrNull() != null &&
-            oidcServerConfigurationUseCaseResult.getDataOrNull().isTokenEndpointAuthMethodSupportedClientSecretPost()) {
+            boolean supportsClientSecretPost = oidcServerConfigurationUseCaseResult.getDataOrNull() != null &&
+                    oidcServerConfigurationUseCaseResult.getDataOrNull().isTokenEndpointAuthMethodSupportedClientSecretPost();
+            if (sanitizedClientSecret != null && supportsClientSecretPost) {
                 clientIdForRequest = clientId;
-                clientSecretForRequest = clientSecret;
+                clientSecretForRequest = sanitizedClientSecret;
+            } else if (sanitizedClientSecret == null) {
+                clientIdForRequest = clientId;
             }
         } else {
             Timber.d("OIDC Discovery failed. Server discovery info: [ %s ]",
                     oidcServerConfigurationUseCaseResult.getThrowableOrNull().toString());
 
             tokenEndpoint = baseUrl + File.separator + mContext.getString(R.string.oauth2_url_endpoint_access);
+            if (sanitizedClientSecret != null) {
+                clientIdForRequest = clientId;
+                clientSecretForRequest = sanitizedClientSecret;
+            } else {
+                clientIdForRequest = clientId;
+            }
         }
 
-        String clientAuth = OAuthUtils.Companion.getClientAuth(clientSecret, clientId);
+        String clientAuth = OAuthUtils.Companion.getClientAuth(sanitizedClientSecret, clientId);
 
         String scope = mContext.getResources().getString(R.string.oauth2_openid_scope);
 
