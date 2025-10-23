@@ -121,7 +121,7 @@ class RemoveFilesDialogFragment : DialogFragment() {
         if (files.size == 1) {
             val file = files[0]
             // Show the thumbnail when the file has one
-            val thumbnail = ThumbnailsCacheManager.getBitmapFromDiskCache(file.remoteId)
+            val thumbnail = ThumbnailsCacheManager.getBitmapFromDiskCache(file)
             if (thumbnail != null) {
                 thumbnailImageView.setImageBitmap(thumbnail)
             } else {
