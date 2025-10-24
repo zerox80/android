@@ -2,7 +2,9 @@ package eu.opencloud.android.lib.resources.files.tus
 
 import eu.opencloud.android.lib.common.OpenCloudClient
 import eu.opencloud.android.lib.common.http.HttpConstants
+import eu.opencloud.android.lib.common.http.methods.HttpBaseMethod
 import eu.opencloud.android.lib.common.http.methods.nonwebdav.PatchMethod
+import eu.opencloud.android.lib.common.http.methods.nonwebdav.PostMethod
 import eu.opencloud.android.lib.common.network.ChunkFromFileRequestBody
 import eu.opencloud.android.lib.common.network.OnDatatransferProgressListener
 import eu.opencloud.android.lib.common.operations.OperationCancelledException
@@ -16,6 +18,7 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.URL
 import java.nio.channels.FileChannel
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -28,11 +31,12 @@ class PatchTusUploadChunkRemoteOperation(
     private val uploadUrl: String,
     private val offset: Long,
     private val chunkSize: Long,
+    private val httpMethodOverride: String? = null,
 ) : RemoteOperation<Long>() {
 
     private val cancellationRequested = AtomicBoolean(false)
     private val dataTransferListeners: MutableSet<OnDatatransferProgressListener> = HashSet()
-    private var patchMethod: PatchMethod? = null
+    private var activeMethod: HttpBaseMethod? = null
 
     override fun run(client: OpenCloudClient): RemoteOperationResult<Long> =
         try {
@@ -52,23 +56,40 @@ class PatchTusUploadChunkRemoteOperation(
                     return RemoteOperationResult<Long>(OperationCancelledException())
                 }
 
-                patchMethod = PatchMethod(URL(uploadUrl), body).apply {
+                val method = when (httpMethodOverride?.uppercase(Locale.ROOT)) {
+                    "POST" -> PostMethod(URL(uploadUrl), body).apply {
+                        setRequestHeader(HttpConstants.X_HTTP_METHOD_OVERRIDE, "PATCH")
+                    }
+                    else -> PatchMethod(URL(uploadUrl), body)
+                }.apply {
                     setRequestHeader(HttpConstants.TUS_RESUMABLE, HttpConstants.TUS_RESUMABLE_VERSION_1_0_0)
                     setRequestHeader(HttpConstants.UPLOAD_OFFSET, offset.toString())
                     setRequestHeader(HttpConstants.CONTENT_TYPE_HEADER, HttpConstants.CONTENT_TYPE_OFFSET_OCTET_STREAM)
                 }
 
-                val status = client.executeHttpMethod(patchMethod)
-                Timber.d("Patch TUS upload chunk - $status${if (!isSuccess(status)) "(FAIL)" else ""}")
+                activeMethod = method
+
+                val status = client.executeHttpMethod(method)
+                Timber.d(
+                    "Patch TUS upload chunk via %s - %d%s",
+                    method.javaClass.simpleName,
+                    status,
+                    if (!isSuccess(status)) " (FAIL)" else ""
+                )
 
                 if (isSuccess(status)) {
-                    val newOffset = patchMethod!!.getResponseHeader(HttpConstants.UPLOAD_OFFSET)?.toLongOrNull()
-                    if (newOffset != null) RemoteOperationResult<Long>(ResultCode.OK).apply { data = newOffset }
-                    else RemoteOperationResult<Long>(patchMethod).apply { data = -1L }
-                } else RemoteOperationResult<Long>(patchMethod)
+                    val newOffset = method.getResponseHeader(HttpConstants.UPLOAD_OFFSET)?.toLongOrNull()
+                    if (newOffset != null) {
+                        RemoteOperationResult<Long>(ResultCode.OK).apply { data = newOffset }
+                    } else {
+                        RemoteOperationResult<Long>(method).apply { data = -1L }
+                    }
+                } else {
+                    RemoteOperationResult<Long>(method)
+                }
             }
         } catch (e: Exception) {
-            val result = if (patchMethod?.isAborted == true) {
+            val result = if (activeMethod?.isAborted == true) {
                 RemoteOperationResult<Long>(OperationCancelledException())
             } else RemoteOperationResult<Long>(e)
             Timber.e(result.exception, "Patch TUS upload chunk failed: ${result.logMessage}")
@@ -86,7 +107,7 @@ class PatchTusUploadChunkRemoteOperation(
     fun cancel() {
         synchronized(cancellationRequested) {
             cancellationRequested.set(true)
-            patchMethod?.abort()
+            activeMethod?.abort()
         }
     }
 

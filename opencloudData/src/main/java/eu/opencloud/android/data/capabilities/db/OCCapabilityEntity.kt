@@ -33,6 +33,7 @@ import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_FIL
 import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_FILES_PRIVATE_LINKS
 import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_FILES_UNDELETE
 import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_FILES_VERSIONING
+import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_TUS_SUPPORT_PREFIX
 import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_PASSWORD_POLICY_PREFIX
 import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_SHARING_API_ENABLED
 import eu.opencloud.android.data.ProviderMeta.ProviderTableMeta.CAPABILITIES_SHARING_FEDERATION_INCOMING
@@ -124,6 +125,8 @@ data class OCCapabilityEntity(
     val filesPrivateLinks: Int,
     @Embedded(prefix = CAPABILITIES_APP_PROVIDERS_PREFIX)
     val appProviders: OCCapability.AppProviders?,
+    @Embedded(prefix = CAPABILITIES_TUS_SUPPORT_PREFIX)
+    val tusSupport: OCCapability.TusSupport?,
     @Embedded(prefix = CAPABILITIES_SPACES_PREFIX)
     val spaces: OCCapability.Spaces?,
     @Embedded(prefix = CAPABILITIES_PASSWORD_POLICY_PREFIX)
@@ -163,6 +166,7 @@ data class OCCapabilityEntity(
                 it.getInt(it.getColumnIndexOrThrow(CAPABILITIES_FILES_VERSIONING)),
                 it.getColumnIndex(CAPABILITIES_FILES_PRIVATE_LINKS).takeUnless { it < 0 }?.let { index -> it.getInt(index) }
                     ?: CapabilityBooleanType.UNKNOWN.value,
+                null,
                 null,
                 null,
                 null,
