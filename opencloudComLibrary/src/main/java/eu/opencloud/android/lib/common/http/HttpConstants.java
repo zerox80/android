@@ -45,6 +45,7 @@ public class HttpConstants {
     public static final String OC_TOTAL_LENGTH_HEADER = "OC-Total-Length";
     public static final String OC_X_OC_MTIME_HEADER = "X-OC-Mtime";
     public static final String OC_X_REQUEST_ID = "X-Request-ID";
+    public static final String X_HTTP_METHOD_OVERRIDE = "X-HTTP-Method-Override";
     public static final String LOCATION_HEADER = "Location";
     public static final String LOCATION_HEADER_LOWER = "location";
     public static final String CONTENT_TYPE_URLENCODED_UTF8 = "application/x-www-form-urlencoded; charset=utf-8";

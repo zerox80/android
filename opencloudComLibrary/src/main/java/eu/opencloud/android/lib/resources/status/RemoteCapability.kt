@@ -73,6 +73,7 @@ data class RemoteCapability(
     var filesVersioning: CapabilityBooleanType = CapabilityBooleanType.UNKNOWN,
     val filesPrivateLinks: CapabilityBooleanType = CapabilityBooleanType.UNKNOWN,
     val filesAppProviders: List<RemoteAppProviders>?,
+    val filesTusSupport: TusSupport?,
 
     // Spaces
     val spaces: RemoteSpaces?,
@@ -116,6 +117,14 @@ data class RemoteCapability(
         val openUrl: String?,
         val openWebUrl: String?,
         val newUrl: String?,
+    )
+
+    data class TusSupport(
+        val version: String?,
+        val resumable: String?,
+        val extension: String?,
+        val maxChunkSize: Int?,
+        val httpMethodOverride: String?,
     )
 
     data class RemoteSpaces(

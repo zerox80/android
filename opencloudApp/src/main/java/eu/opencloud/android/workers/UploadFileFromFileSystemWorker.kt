@@ -30,6 +30,7 @@ import androidx.work.workDataOf
 import eu.opencloud.android.R
 import eu.opencloud.android.data.executeRemoteOperation
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
+import eu.opencloud.android.domain.capabilities.model.OCCapability
 import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.domain.exceptions.LocalFileNotFoundException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
@@ -145,7 +146,7 @@ class UploadFileFromFileSystemWorker(
         return md.digest().joinToString("") { b -> "%02x".format(b) }
     }
 
-    private fun uploadViaTus(client: OpenCloudClient): Boolean {
+    private fun uploadViaTus(client: OpenCloudClient, tusSupport: OCCapability.TusSupport?): Boolean {
         try {
             Timber.d("TUS: entering uploadViaTus for %s size=%d", uploadPath, fileSize)
             // 1) Create or reuse TUS upload URL
@@ -206,7 +207,13 @@ class UploadFileFromFileSystemWorker(
             // 3) PATCH loop with basic retry/resume on transient failures
             var consecutiveFailures = 0
             val maxRetries = 5
-            val serverMaxChunk: Long? = null
+            val serverMaxChunk: Long? = tusSupport?.maxChunkSize?.takeIf { it > 0 }?.toLong()
+            Timber.d(
+                "TUS chunk preferences: clientChunk=%d serverMax=%s httpOverride=%s",
+                CHUNK_SIZE,
+                serverMaxChunk,
+                tusSupport?.httpMethodOverride
+            )
             while (offset < fileSize) {
                 val remaining = fileSize - offset
                 val limitByServer = serverMaxChunk ?: Long.MAX_VALUE
@@ -218,6 +225,7 @@ class UploadFileFromFileSystemWorker(
                     uploadUrl = tusUrl,
                     offset = offset,
                     chunkSize = chunk,
+                    httpMethodOverride = tusSupport?.httpMethodOverride,
                 ).apply {
                     addDataTransferProgressListener(this@UploadFileFromFileSystemWorker)
                 }
@@ -391,12 +399,13 @@ class UploadFileFromFileSystemWorker(
             )
         )
         val isChunkingAllowed = capabilitiesForAccount != null && capabilitiesForAccount.isChunkingAllowed()
+        val tusSupport = capabilitiesForAccount?.filesTusSupport
         Timber.d("Chunking is allowed: %s, and file size is greater than the minimum chunk size: %s", isChunkingAllowed, fileSize > CHUNK_SIZE)
 
         // Prefer TUS for large files: optimistically try TUS create and let it fail fast if unsupported
         val usedTus = if (fileSize > CHUNK_SIZE) {
             Timber.d("Attempting TUS for large upload (size=%d, threshold=%d)", fileSize, CHUNK_SIZE)
-            val ok = uploadViaTus(client)
+            val ok = uploadViaTus(client, tusSupport)
             Timber.d("TUS attempt result: %s", if (ok) "success" else "failed")
             ok
         } else {
@@ -405,8 +414,15 @@ class UploadFileFromFileSystemWorker(
         }
 
         if (!usedTus) {
-            Timber.d("Proceeding without TUS: %s", if (isChunkingAllowed && fileSize > CHUNK_SIZE) "chunked WebDAV" else "plain WebDAV")
-            if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
+            val shouldForceChunkedFallback = !isChunkingAllowed && fileSize > CHUNK_SIZE && tusSupport != null
+            val useChunkedFallback = (isChunkingAllowed && fileSize > CHUNK_SIZE) || shouldForceChunkedFallback
+            Timber.d(
+                "Proceeding without TUS: %s (forcedChunkFallback=%s, httpOverride=%s)",
+                if (useChunkedFallback) "chunked WebDAV" else "plain WebDAV",
+                shouldForceChunkedFallback,
+                tusSupport?.httpMethodOverride
+            )
+            if (useChunkedFallback) {
                 uploadChunkedFile(client)
             } else {
                 uploadPlainFile(client)

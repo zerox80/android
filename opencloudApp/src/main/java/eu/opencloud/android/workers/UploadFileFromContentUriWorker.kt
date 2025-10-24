@@ -44,6 +44,7 @@ import eu.opencloud.android.domain.transfers.model.TransferResult
 import eu.opencloud.android.domain.transfers.model.TransferStatus
 import eu.opencloud.android.extensions.isContentUri
 import eu.opencloud.android.extensions.parseError
+import eu.opencloud.android.domain.capabilities.model.OCCapability
 import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.lib.common.OpenCloudAccount
 import eu.opencloud.android.lib.common.OpenCloudClient
@@ -257,13 +258,14 @@ class UploadFileFromContentUriWorker(
             )
         )
         val isChunkingAllowed = capabilitiesForAccount != null && capabilitiesForAccount.isChunkingAllowed()
+        val tusSupport = capabilitiesForAccount?.filesTusSupport
         Timber.d("Chunking is allowed: %s, and file size is greater than the minimum chunk size: %s", isChunkingAllowed, fileSize > CHUNK_SIZE)
 
         // Prefer TUS for large files: optimistically try TUS and fall back on failure
         val usedTus = if (fileSize > CHUNK_SIZE) {
             Timber.d("Attempting TUS for large upload (size=%d, threshold=%d)", fileSize, CHUNK_SIZE)
             val ok = try {
-                uploadTusFile(client)
+                uploadTusFile(client, tusSupport)
                 true
             } catch (e: Exception) {
                 Timber.w(e, "TUS flow failed, will fallback to existing upload methods")
@@ -277,7 +279,9 @@ class UploadFileFromContentUriWorker(
         }
 
         if (!usedTus) {
-            if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
+            val shouldForceChunkedFallback = !isChunkingAllowed && fileSize > CHUNK_SIZE && tusSupport != null
+            val useChunkedFallback = (isChunkingAllowed && fileSize > CHUNK_SIZE) || shouldForceChunkedFallback
+            if (useChunkedFallback) {
                 uploadChunkedFile(client)
             } else {
                 uploadPlainFile(client)
@@ -286,7 +290,7 @@ class UploadFileFromContentUriWorker(
         removeCacheFile()
     }
 
-    private fun uploadTusFile(client: OpenCloudClient) {
+    private fun uploadTusFile(client: OpenCloudClient, tusSupport: OCCapability.TusSupport?) {
         Timber.i("Starting TUS upload for %s (size=%d)", uploadPath, fileSize)
 
         // 1) Create or resume session
@@ -339,9 +343,13 @@ class UploadFileFromContentUriWorker(
         }
         Timber.d("TUS resume offset: %d / %d", offset, fileSize)
 
-        // Use fixed chunk size if server max is unknown
-        val serverMaxChunk: Long? = null
-        Timber.d("TUS using fixed chunk size: %d", CHUNK_SIZE)
+        val serverMaxChunk: Long? = tusSupport?.maxChunkSize?.takeIf { it > 0 }?.toLong()
+        Timber.d(
+            "TUS chunk preferences: clientChunk=%d serverMax=%s httpOverride=%s",
+            CHUNK_SIZE,
+            serverMaxChunk,
+            tusSupport?.httpMethodOverride
+        )
 
         // 3) PATCH loop
         while (offset < fileSize) {
@@ -353,7 +361,8 @@ class UploadFileFromContentUriWorker(
                 localPath = cachePath,
                 uploadUrl = tusUrl,
                 offset = offset,
-                chunkSize = toSend
+                chunkSize = toSend,
+                httpMethodOverride = tusSupport?.httpMethodOverride,
             ).apply {
                 addDataTransferProgressListener(this@UploadFileFromContentUriWorker)
             }

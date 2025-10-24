@@ -69,6 +69,7 @@ class RemoteCapabilityMapper : RemoteMapper<OCCapability, RemoteCapability> {
                 filesVersioning = CapabilityBooleanType.fromValue(remote.filesVersioning.value),
                 filesPrivateLinks = CapabilityBooleanType.fromValue(remote.filesPrivateLinks.value),
                 filesAppProviders = remote.filesAppProviders?.firstOrNull()?.toAppProviders(),
+                filesTusSupport = remote.filesTusSupport?.toTusSupport(),
                 spaces = remote.spaces?.toSpaces(),
                 passwordPolicy = remote.passwordPolicy?.toPasswordPolicy()
             )
@@ -115,6 +116,7 @@ class RemoteCapabilityMapper : RemoteMapper<OCCapability, RemoteCapability> {
                 filesVersioning = RemoteCapabilityBooleanType.fromValue(model.filesVersioning.value)!!,
                 filesPrivateLinks = RemoteCapabilityBooleanType.fromValue(model.filesPrivateLinks.value)!!,
                 filesAppProviders = null,
+                filesTusSupport = model.filesTusSupport?.toRemoteTusSupport(),
                 spaces = null,
                 passwordPolicy = null,
             )
@@ -122,6 +124,12 @@ class RemoteCapabilityMapper : RemoteMapper<OCCapability, RemoteCapability> {
 
     private fun RemoteCapability.RemoteAppProviders.toAppProviders() =
         OCCapability.AppProviders(enabled, version, appsUrl, openUrl, openWebUrl, newUrl)
+
+    private fun RemoteCapability.TusSupport.toTusSupport() =
+        OCCapability.TusSupport(version, resumable, extension, maxChunkSize, httpMethodOverride)
+
+    private fun OCCapability.TusSupport.toRemoteTusSupport() =
+        RemoteCapability.TusSupport(version, resumable, extension, maxChunkSize, httpMethodOverride)
 
     private fun RemoteCapability.RemoteSpaces.toSpaces() =
         OCCapability.Spaces(enabled, projects, shareJail, hasMultiplePersonalSpaces)
