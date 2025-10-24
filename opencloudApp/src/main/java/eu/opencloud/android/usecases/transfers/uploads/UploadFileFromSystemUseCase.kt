@@ -22,10 +22,10 @@
 package eu.opencloud.android.usecases.transfers.uploads
 
 import androidx.work.Constraints
+import androidx.work.Data
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.workDataOf
 import eu.opencloud.android.domain.BaseUseCase
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
 import eu.opencloud.android.workers.RemoveSourceFileWorker
@@ -38,17 +38,23 @@ class UploadFileFromSystemUseCase(
 ) : BaseUseCase<Unit, UploadFileFromSystemUseCase.Params>() {
 
     override fun run(params: Params) {
-        val inputDataUploadFileFromFileSystemWorker = workDataOf(
-            UploadFileFromFileSystemWorker.KEY_PARAM_ACCOUNT_NAME to params.accountName,
-            UploadFileFromFileSystemWorker.KEY_PARAM_BEHAVIOR to params.behavior,
-            UploadFileFromFileSystemWorker.KEY_PARAM_LOCAL_PATH to params.localPath,
-            UploadFileFromFileSystemWorker.KEY_PARAM_LAST_MODIFIED to params.lastModifiedInSeconds,
-            UploadFileFromFileSystemWorker.KEY_PARAM_UPLOAD_PATH to params.uploadPath,
-            UploadFileFromFileSystemWorker.KEY_PARAM_UPLOAD_ID to params.uploadIdInStorageManager
-        )
-        val inputDataRemoveSourceFileWorker = workDataOf(
-            UploadFileFromContentUriWorker.KEY_PARAM_CONTENT_URI to params.sourcePath,
-        )
+        val inputDataUploadFileFromFileSystemWorker = Data.Builder()
+            .putString(UploadFileFromFileSystemWorker.KEY_PARAM_ACCOUNT_NAME, params.accountName)
+            .putString(UploadFileFromFileSystemWorker.KEY_PARAM_BEHAVIOR, params.behavior)
+            .putString(UploadFileFromFileSystemWorker.KEY_PARAM_LOCAL_PATH, params.localPath)
+            .putString(UploadFileFromFileSystemWorker.KEY_PARAM_UPLOAD_PATH, params.uploadPath)
+            .putLong(UploadFileFromFileSystemWorker.KEY_PARAM_UPLOAD_ID, params.uploadIdInStorageManager)
+            .apply {
+                params.lastModifiedInSeconds?.let {
+                    putString(UploadFileFromFileSystemWorker.KEY_PARAM_LAST_MODIFIED, it)
+                }
+            }
+            .build()
+        val inputDataRemoveSourceFileWorker = Data.Builder().apply {
+            params.sourcePath?.let {
+                putString(UploadFileFromContentUriWorker.KEY_PARAM_CONTENT_URI, it)
+            }
+        }.build()
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -62,7 +68,7 @@ class UploadFileFromSystemUseCase(
             .build()
 
         val behavior = UploadBehavior.fromString(params.behavior)
-        if (behavior == UploadBehavior.MOVE) {
+        if (behavior == UploadBehavior.MOVE && params.sourcePath != null) {
             val removeSourceFileWorker = OneTimeWorkRequestBuilder<RemoveSourceFileWorker>()
                 .setInputData(inputDataRemoveSourceFileWorker)
                 .build()
@@ -79,7 +85,7 @@ class UploadFileFromSystemUseCase(
     data class Params(
         val accountName: String,
         val localPath: String,
-        val lastModifiedInSeconds: String,
+        val lastModifiedInSeconds: String?,
         val behavior: String,
         val uploadPath: String,
         val uploadIdInStorageManager: Long,

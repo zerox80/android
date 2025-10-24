@@ -85,7 +85,7 @@ class UploadFileFromFileSystemWorker(
 
     private lateinit var account: Account
     private lateinit var fileSystemPath: String
-    private lateinit var lastModified: String
+    private var lastModified: String = ""
     private lateinit var behavior: UploadBehavior
     private lateinit var uploadPath: String
     private lateinit var mimetype: String
@@ -308,7 +308,7 @@ class UploadFileFromFileSystemWorker(
         fileSystemPath = paramFileSystemUri.takeUnless { it.isNullOrBlank() } ?: return false
         uploadPath = paramUploadPath ?: return false
         behavior = paramBehavior?.let { UploadBehavior.valueOf(it) } ?: return false
-        lastModified = paramLastModified ?: return false
+        lastModified = paramLastModified.orEmpty()
         uploadIdInStorageManager = paramUploadId.takeUnless { it == -1L } ?: return false
         ocTransfer = retrieveUploadInfoFromDatabase() ?: return false
         removeLocal = paramRemoveLocal
@@ -335,6 +335,18 @@ class UploadFileFromFileSystemWorker(
         }
         mimetype = fileInFileSystem.extension
         fileSize = fileInFileSystem.length()
+        ensureValidLastModified(fileInFileSystem)
+    }
+
+    private fun ensureValidLastModified(sourceFile: File) {
+        val current = lastModified.toLongOrNull()
+        if (current != null && current > 0) {
+            return
+        }
+
+        val fallbackMillis = sourceFile.lastModified().takeIf { it > 0 }
+            ?: System.currentTimeMillis()
+        lastModified = (fallbackMillis / 1000L).toString()
     }
 
     private fun getClientForThisUpload(): OpenCloudClient =
