@@ -87,7 +87,7 @@ class UploadFileFromContentUriWorker(
 
     private lateinit var account: Account
     private lateinit var contentUri: Uri
-    private lateinit var lastModified: String
+    private var lastModified: String = ""
     private lateinit var behavior: UploadBehavior
     private lateinit var uploadPath: String
     private lateinit var cachePath: String
@@ -151,7 +151,7 @@ class UploadFileFromContentUriWorker(
         contentUri = paramContentUri?.toUri() ?: return false
         uploadPath = paramUploadPath ?: return false
         behavior = paramBehavior?.let { UploadBehavior.fromString(it) } ?: return false
-        lastModified = paramLastModified ?: return false
+        lastModified = paramLastModified.orEmpty()
         uploadIdInStorageManager = paramUploadId
         ocTransfer = retrieveUploadInfoFromDatabase() ?: return false
 
@@ -186,6 +186,7 @@ class UploadFileFromContentUriWorker(
     }
 
     private fun copyFileToLocalStorage() {
+        val documentFile = DocumentFile.fromSingleUri(appContext, contentUri)
         val cacheFile = File(cachePath)
         val cacheDir = cacheFile.parentFile
         if (cacheDir != null && !cacheDir.exists()) {
@@ -203,6 +204,20 @@ class UploadFileFromContentUriWorker(
 
         transferRepository.updateTransferSourcePath(uploadIdInStorageManager, contentUri.toString())
         transferRepository.updateTransferLocalPath(uploadIdInStorageManager, cachePath)
+
+        ensureValidLastModified(documentFile, cacheFile)
+    }
+
+    private fun ensureValidLastModified(documentFile: DocumentFile?, cachedFile: File) {
+        val current = lastModified.toLongOrNull()
+        if (current != null && current > 0) {
+            return
+        }
+
+        val documentMillis = documentFile?.lastModified()?.takeIf { it > 0 }
+        val fileMillis = cachedFile.lastModified().takeIf { it > 0 }
+        val fallbackMillis = documentMillis ?: fileMillis ?: System.currentTimeMillis()
+        lastModified = (fallbackMillis / 1000L).toString()
     }
 
     private fun getClientForThisUpload(): OpenCloudClient =
@@ -251,6 +266,7 @@ class UploadFileFromContentUriWorker(
         val cacheFile = File(cachePath)
         mimeType = cacheFile.extension
         fileSize = cacheFile.length()
+        ensureValidLastModified(null, cacheFile)
 
         val capabilitiesForAccount = getStoredCapabilitiesUseCase(
             GetStoredCapabilitiesUseCase.Params(
