@@ -241,6 +241,10 @@ public class RemoteOperationResult<T>
                         ResultCode.SPECIFIC_METHOD_NOT_ALLOWED
                 );
                 break;
+            case HttpConstants.HTTP_PRECONDITION_FAILED:
+                // For TUS, 412 typically indicates Upload-Offset precondition mismatch
+                mCode = ResultCode.CONFLICT;
+                break;
             case HttpConstants.HTTP_TOO_EARLY:
                 mCode = ResultCode.TOO_EARLY;
                 break;

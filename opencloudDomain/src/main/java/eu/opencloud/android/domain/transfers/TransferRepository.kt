@@ -57,4 +57,20 @@ interface TransferRepository {
     fun getFinishedTransfers(): List<OCTransfer>
     fun clearFailedTransfers()
     fun clearSuccessfulTransfers()
+
+    // TUS state management
+    fun updateTusState(
+        id: Long,
+        tusUploadUrl: String?,
+        tusUploadOffset: Long?,
+        tusUploadLength: Long?,
+        tusUploadMetadata: String?,
+        tusUploadChecksum: String?,
+        tusResumableVersion: String?,
+        tusUploadExpires: Long?,
+        tusUploadConcat: String?,
+    )
+
+    fun updateTusOffset(id: Long, tusUploadOffset: Long?)
+    fun updateTusUrl(id: Long, tusUploadUrl: String?)
 }

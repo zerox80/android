@@ -191,7 +191,9 @@ public class OpenCloudClient extends HttpClient {
     }
 
     public Uri getUploadsWebDavUri() {
-        return mCredentials instanceof OpenCloudAnonymousCredentials
+        // Always include the userId segment when an account is present to avoid permission issues
+        // on servers that scope the uploads collection under the user path.
+        return (mAccount == null)
                 ? Uri.parse(mBaseUri + WEBDAV_UPLOADS_PATH_4_0)
                 : Uri.parse(mBaseUri + WEBDAV_UPLOADS_PATH_4_0 + AccountUtils.getUserId(
                         mAccount.getSavedAccount(), getContext()

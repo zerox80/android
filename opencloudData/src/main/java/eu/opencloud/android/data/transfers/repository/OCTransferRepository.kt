@@ -111,4 +111,34 @@ class OCTransferRepository(
 
     override fun clearSuccessfulTransfers() =
         localTransferDataSource.clearSuccessfulTransfers()
+
+    // TUS state management
+    override fun updateTusState(
+        id: Long,
+        tusUploadUrl: String?,
+        tusUploadOffset: Long?,
+        tusUploadLength: Long?,
+        tusUploadMetadata: String?,
+        tusUploadChecksum: String?,
+        tusResumableVersion: String?,
+        tusUploadExpires: Long?,
+        tusUploadConcat: String?,
+    ) =
+        localTransferDataSource.updateTusState(
+            id = id,
+            tusUploadUrl = tusUploadUrl,
+            tusUploadOffset = tusUploadOffset,
+            tusUploadLength = tusUploadLength,
+            tusUploadMetadata = tusUploadMetadata,
+            tusUploadChecksum = tusUploadChecksum,
+            tusResumableVersion = tusResumableVersion,
+            tusUploadExpires = tusUploadExpires,
+            tusUploadConcat = tusUploadConcat,
+        )
+
+    override fun updateTusOffset(id: Long, tusUploadOffset: Long?) =
+        localTransferDataSource.updateTusOffset(id = id, tusUploadOffset = tusUploadOffset)
+
+    override fun updateTusUrl(id: Long, tusUploadUrl: String?) =
+        localTransferDataSource.updateTusUrl(id = id, tusUploadUrl = tusUploadUrl)
 }

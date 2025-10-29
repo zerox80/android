@@ -34,7 +34,6 @@ import eu.opencloud.android.R
 import eu.opencloud.android.data.executeRemoteOperation
 import eu.opencloud.android.data.providers.LocalStorageProvider
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
-import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.domain.exceptions.LocalFileNotFoundException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
 import eu.opencloud.android.domain.files.model.OCFile
@@ -45,6 +44,7 @@ import eu.opencloud.android.domain.transfers.model.TransferResult
 import eu.opencloud.android.domain.transfers.model.TransferStatus
 import eu.opencloud.android.extensions.isContentUri
 import eu.opencloud.android.extensions.parseError
+import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.lib.common.OpenCloudAccount
 import eu.opencloud.android.lib.common.OpenCloudClient
 import eu.opencloud.android.lib.common.SingleSessionManager
@@ -57,6 +57,9 @@ import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperatio
 import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation
 import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation.Companion.CHUNK_SIZE
 import eu.opencloud.android.lib.resources.files.services.implementation.OCChunkService
+import eu.opencloud.android.lib.resources.files.tus.CreateTusUploadRemoteOperation
+import eu.opencloud.android.lib.resources.files.tus.GetTusUploadOffsetRemoteOperation
+import eu.opencloud.android.lib.resources.files.tus.PatchTusUploadChunkRemoteOperation
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
 import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
@@ -70,6 +73,8 @@ import org.koin.core.component.inject
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FileInputStream
+import java.security.MessageDigest
 
 class UploadFileFromContentUriWorker(
     private val appContext: Context,
@@ -97,6 +102,8 @@ class UploadFileFromContentUriWorker(
 
     private val transferRepository: TransferRepository by inject()
     private val getWebdavUrlForSpaceUseCase: GetWebDavUrlForSpaceUseCase by inject()
+    private val getStoredCapabilitiesUseCase: GetStoredCapabilitiesUseCase by inject()
+    
 
     override suspend fun doWork(): Result {
 
@@ -116,6 +123,7 @@ class UploadFileFromContentUriWorker(
                 checkPermissionsToReadDocumentAreGranted()
                 copyFileToLocalStorage()
             }
+
             val clientForThisUpload = getClientForThisUpload()
             checkParentFolderExistence(clientForThisUpload)
             checkNameCollisionAndGetAnAvailableOneInCase(clientForThisUpload)
@@ -243,7 +251,6 @@ class UploadFileFromContentUriWorker(
         mimeType = cacheFile.extension
         fileSize = cacheFile.length()
 
-        val getStoredCapabilitiesUseCase: GetStoredCapabilitiesUseCase by inject()
         val capabilitiesForAccount = getStoredCapabilitiesUseCase(
             GetStoredCapabilitiesUseCase.Params(
                 accountName = account.name
@@ -252,12 +259,127 @@ class UploadFileFromContentUriWorker(
         val isChunkingAllowed = capabilitiesForAccount != null && capabilitiesForAccount.isChunkingAllowed()
         Timber.d("Chunking is allowed: %s, and file size is greater than the minimum chunk size: %s", isChunkingAllowed, fileSize > CHUNK_SIZE)
 
-        if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
-            uploadChunkedFile(client)
+        // Prefer TUS for large files: optimistically try TUS and fall back on failure
+        val usedTus = if (fileSize > CHUNK_SIZE) {
+            Timber.d("Attempting TUS for large upload (size=%d, threshold=%d)", fileSize, CHUNK_SIZE)
+            val ok = try {
+                uploadTusFile(client)
+                true
+            } catch (e: Exception) {
+                Timber.w(e, "TUS flow failed, will fallback to existing upload methods")
+                false
+            }
+            Timber.d("TUS attempt result: %s", if (ok) "success" else "failed")
+            ok
         } else {
-            uploadPlainFile(client)
+            Timber.d("Skipping TUS: file too small (size=%d <= threshold=%d)", fileSize, CHUNK_SIZE)
+            false
+        }
+
+        if (!usedTus) {
+            if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
+                uploadChunkedFile(client)
+            } else {
+                uploadPlainFile(client)
+            }
         }
         removeCacheFile()
+    }
+
+    private fun uploadTusFile(client: OpenCloudClient) {
+        Timber.i("Starting TUS upload for %s (size=%d)", uploadPath, fileSize)
+
+        // 1) Create or resume session
+        var tusUrl = ocTransfer.tusUploadUrl
+        if (tusUrl.isNullOrBlank()) {
+            val fileName = File(uploadPath).name
+            val sha256 = try { computeSha256Hex(cachePath) } catch (e: Exception) { Timber.w(e, "SHA-256 computation failed"); "" }
+            val metadata = linkedMapOf(
+                "filename" to fileName,
+                "mimetype" to mimeType
+            )
+            if (sha256.isNotEmpty()) {
+                metadata["checksum"] = "sha256 $sha256"
+            }
+            // Without explicit capability info, avoid creation-with-upload to maximize compatibility
+            val firstChunk = 0L
+            val useCreationWithUpload = false
+
+            val create = CreateTusUploadRemoteOperation(
+                file = File(cachePath),
+                remotePath = uploadPath,
+                mimetype = mimeType,
+                metadata = metadata,
+                useCreationWithUpload = useCreationWithUpload,
+                firstChunkSize = null,
+                tusUrl = ""
+            )
+            val createResult = create.execute(client)
+            if (!createResult.isSuccess || createResult.data.isNullOrBlank()) {
+                throw IllegalStateException("Failed to create TUS upload resource")
+            }
+            tusUrl = createResult.data
+            transferRepository.updateTusState(
+                id = uploadIdInStorageManager,
+                tusUploadUrl = tusUrl,
+                tusUploadOffset = 0L,
+                tusUploadLength = fileSize,
+                tusUploadMetadata = "filename=$fileName${if (sha256.isNotEmpty()) ";checksum=sha256 $sha256" else ""}",
+                tusUploadChecksum = if (sha256.isNotEmpty()) "sha256:$sha256" else null,
+                tusResumableVersion = "1.0.0",
+                tusUploadExpires = null,
+                tusUploadConcat = null,
+            )
+        }
+
+        // 2) Query current offset
+        var offset = 0L
+        GetTusUploadOffsetRemoteOperation(tusUrl!!).execute(client).also { res ->
+            if (res.isSuccess && (res.data ?: -1L) >= 0) offset = res.data!!
+        }
+        Timber.d("TUS resume offset: %d / %d", offset, fileSize)
+
+        // Use fixed chunk size if server max is unknown
+        val serverMaxChunk: Long? = null
+        Timber.d("TUS using fixed chunk size: %d", CHUNK_SIZE)
+
+        // 3) PATCH loop
+        while (offset < fileSize) {
+            val remaining = fileSize - offset
+            val limitByServer = serverMaxChunk ?: Long.MAX_VALUE
+            val toSend = minOf(CHUNK_SIZE, remaining, limitByServer)
+            Timber.d("TUS using chunk=%d remaining=%d", toSend, remaining)
+            val patch = PatchTusUploadChunkRemoteOperation(
+                localPath = cachePath,
+                uploadUrl = tusUrl,
+                offset = offset,
+                chunkSize = toSend
+            ).apply {
+                addDataTransferProgressListener(this@UploadFileFromContentUriWorker)
+            }
+            val result = patch.execute(client)
+            if (result.isSuccess && (result.data ?: -1L) >= 0) {
+                offset = result.data!!
+                transferRepository.updateTusOffset(uploadIdInStorageManager, offset)
+                // Also push overall progress explicitly
+                val percent: Int = (100.0 * offset.toDouble() / fileSize.toDouble()).toInt()
+                CoroutineScope(Dispatchers.IO).launch {
+                    val progress = workDataOf(DownloadFileWorker.WORKER_KEY_PROGRESS to percent)
+                    setProgress(progress)
+                }
+            } else {
+                // Try recover on typical TUS conflicts by re-querying offset; else fail to fallback
+                val head = GetTusUploadOffsetRemoteOperation(tusUrl).execute(client)
+                val recovered = head.isSuccess && (head.data ?: -1L) >= 0
+                if (recovered && head.data!! > offset) {
+                    offset = head.data!!
+                    transferRepository.updateTusOffset(uploadIdInStorageManager, offset)
+                    continue
+                }
+                throw IllegalStateException("TUS PATCH failed and could not recover")
+            }
+        }
+        Timber.i("TUS upload finished for %s", uploadPath)
     }
 
     private fun uploadPlainFile(client: OpenCloudClient) {
@@ -312,6 +434,19 @@ class UploadFileFromContentUriWorker(
     private fun removeCacheFile() {
         val cacheFile = File(cachePath)
         cacheFile.delete()
+    }
+
+    private fun computeSha256Hex(path: String): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        FileInputStream(path).use { fis ->
+            val buf = ByteArray(1024 * 1024)
+            while (true) {
+                val read = fis.read(buf)
+                if (read <= 0) break
+                md.update(buf, 0, read)
+            }
+        }
+        return md.digest().joinToString("") { b -> "%02x".format(b) }
     }
 
     private fun updateUploadsDatabaseWithResult(throwable: Throwable?) {
