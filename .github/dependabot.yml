@@ -37,21 +37,6 @@ updates:
         patterns:
           - "com.pinterest.ktlint*"
           - "io.gitlab.arturbosch.detekt*"
-  - package-ecosystem: "gradle-wrapper"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-      day: "monday"
-      time: "05:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    rebase-strategy: "auto"
-    labels:
-      - "Dependencies"
-      - "Gradle Wrapper"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
