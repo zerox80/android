@@ -23,11 +23,14 @@
 package eu.opencloud.android.workers
 
 import android.accounts.Account
+import android.app.Notification
 import android.content.Context
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import eu.opencloud.android.R
@@ -51,13 +54,14 @@ import eu.opencloud.android.lib.common.network.OnDatatransferProgressListener
 import eu.opencloud.android.lib.common.operations.RemoteOperationResult.ResultCode
 import eu.opencloud.android.lib.resources.files.CheckPathExistenceRemoteOperation
 import eu.opencloud.android.lib.resources.files.CreateRemoteFolderOperation
+import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
-import eu.opencloud.android.utils.UPLOAD_NOTIFICATION_CHANNEL_ID
 import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
-import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
+import eu.opencloud.android.utils.UPLOAD_NOTIFICATION_CHANNEL_ID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -65,7 +69,7 @@ import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-
+import java.io.InputStream
 import kotlin.coroutines.cancellation.CancellationException
 
 class UploadFileFromContentUriWorker(
@@ -91,7 +95,7 @@ class UploadFileFromContentUriWorker(
     private lateinit var uploadFileOperation: UploadFileFromFileSystemOperation
     private val tusUploadHelper by lazy { TusUploadHelper(transferRepository) }
 
-    private var lastPercent = 0
+    private var lastPercent = -1
 
     private val transferRepository: TransferRepository by inject()
     private val getWebdavUrlForSpaceUseCase: GetWebDavUrlForSpaceUseCase by inject()
@@ -99,25 +103,25 @@ class UploadFileFromContentUriWorker(
 
     override suspend fun doWork(): Result = try {
         prepareFile()
+        startForeground()
         val clientForThisUpload = getClientForThisUpload()
         checkParentFolderExistence(clientForThisUpload)
         checkNameCollisionAndGetAnAvailableOneInCase(clientForThisUpload)
         uploadDocument(clientForThisUpload)
         updateUploadsDatabaseWithResult(null)
         Result.success()
-    }catch (throwable: Throwable) {
+    } catch (throwable: Throwable) {
         Timber.e(throwable)
 
         if (shouldRetry(throwable)) {
             Timber.i("Retrying upload %d after transient failure", uploadIdInStorageManager)
             Result.retry()
-        }else {
+        } else {
             showNotification(throwable)
             updateUploadsDatabaseWithResult(throwable)
             Result.failure()
         }
     }
-
 
     private fun prepareFile() {
         if (!areParametersValid()) return
@@ -161,7 +165,7 @@ class UploadFileFromContentUriWorker(
             if (it != null) {
                 Timber.d("Upload with id ($uploadIdInStorageManager) has been found in database.")
                 Timber.d("Upload info: $it")
-            }else {
+            } else {
                 Timber.w("Upload with id ($uploadIdInStorageManager) has not been found in database.")
                 Timber.w("$uploadPath won't be uploaded")
             }
@@ -302,7 +306,7 @@ class UploadFileFromContentUriWorker(
                     spaceWebDavUrl = spaceWebDavUrl,
                 )
                 true
-            }catch (throwable: Throwable) {
+            } catch (throwable: Throwable) {
                 Timber.w(throwable, "TUS upload failed, falling back to single PUT")
                 if (shouldRetry(throwable)) {
                     throw throwable
@@ -315,7 +319,7 @@ class UploadFileFromContentUriWorker(
                 Timber.d("TUS upload completed for %s", uploadPath)
                 return
             }
-        }else {
+        } else {
             Timber.d(
                 "Skipping TUS: file too small or unsupported (size=%d, threshold=%d, supportsTus=%s)",
                 fileSize,
@@ -324,12 +328,9 @@ class UploadFileFromContentUriWorker(
             )
         }
 
-        if (attemptedTus) {
-            clearTusState()
-        }
-
         Timber.d("Falling back to single PUT upload for %s", uploadPath)
         uploadPlainFile(client)
+        clearTusState()
         removeCacheFile()
     }
 
@@ -345,7 +346,10 @@ class UploadFileFromContentUriWorker(
             addDataTransferProgressListener(this@UploadFileFromContentUriWorker)
         }
 
-        executeRemoteOperation { uploadFileOperation.execute(client) }
+        val result = executeRemoteOperation { uploadFileOperation.execute(client) }
+        if (result == Unit) {
+            clearTusState()
+        }
     }
 
     private fun updateProgressFromTus(offset: Long, totalSize: Long) {
@@ -357,6 +361,7 @@ class UploadFileFromContentUriWorker(
             val progress = workDataOf(DownloadFileWorker.WORKER_KEY_PROGRESS to percent)
             setProgress(progress)
         }
+        scheduleForegroundUpdate(percent)
         lastPercent = percent
     }
 
@@ -398,7 +403,7 @@ class UploadFileFromContentUriWorker(
     private fun getUploadStatusForThrowable(throwable: Throwable?): TransferStatus =
         if (throwable == null) {
             TransferStatus.TRANSFER_SUCCEEDED
-        }else {
+        } else {
             TransferStatus.TRANSFER_FAILED
         }
 
@@ -411,7 +416,7 @@ class UploadFileFromContentUriWorker(
 
         val pendingIntent = if (needsToUpdateCredentials) {
             NotificationUtils.composePendingIntentToRefreshCredentials(appContext, account)
-        }else {
+        } else {
             NotificationUtils.composePendingIntentToUploadList(appContext)
         }
 
@@ -442,7 +447,76 @@ class UploadFileFromContentUriWorker(
             setProgress(progress)
         }
 
+        scheduleForegroundUpdate(percent)
         lastPercent = percent
+    }
+
+    private suspend fun startForeground() {
+        if (foregroundInitialized) return
+        foregroundInitialized = true
+        currentForegroundProgress = Int.MIN_VALUE
+        try {
+            setForeground(createForegroundInfo(-1))
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to set foreground for upload worker")
+        }
+        currentForegroundProgress = -1
+    }
+
+    private fun scheduleForegroundUpdate(progress: Int) {
+        if (!foregroundInitialized) return
+        if (progress == currentForegroundProgress) return
+        currentForegroundProgress = progress
+        foregroundScope.launch {
+            try {
+                setForeground(createForegroundInfo(progress))
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to update foreground notification")
+            }
+        }
+    }
+
+    private fun createForegroundInfo(progress: Int): ForegroundInfo =
+        ForegroundInfo(
+            computeNotificationId(),
+            buildForegroundNotification(progress),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        )
+
+    private fun buildForegroundNotification(progress: Int): Notification {
+        val fileName = File(uploadPath).name
+        val builder = NotificationUtils
+            .newNotificationBuilder(appContext, UPLOAD_NOTIFICATION_CHANNEL_ID)
+            .setContentTitle(appContext.getString(R.string.uploader_upload_in_progress_ticker))
+            .setContentIntent(NotificationUtils.composePendingIntentToUploadList(appContext))
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setSubText(fileName)
+
+        if (progress in 0..100) {
+            builder.setContentText(
+                appContext.getString(
+                    R.string.uploader_upload_in_progress_content,
+                    progress,
+                    fileName
+                )
+            )
+            builder.setProgress(100, progress, false)
+        } else {
+            builder.setContentText(appContext.getString(R.string.uploader_upload_in_progress_ticker))
+            builder.setProgress(0, 0, true)
+        }
+
+        return builder.build()
+    }
+
+    private fun computeNotificationId(): Int {
+        val id = uploadIdInStorageManager
+        return if (id in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+            id.toInt()
+        } else {
+            id.hashCode()
+        }
     }
 
     companion object {
