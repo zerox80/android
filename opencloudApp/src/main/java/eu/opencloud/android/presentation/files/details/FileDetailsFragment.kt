@@ -428,8 +428,7 @@ class FileDetailsFragment : FileFragment() {
                 }
             }
             if (ocFile.isImage) {
-                val tagId = ocFile.remoteId.toString()
-                var thumbnail: Bitmap? = ThumbnailsCacheManager.getBitmapFromDiskCache(tagId)
+                var thumbnail: Bitmap? = ThumbnailsCacheManager.getBitmapFromDiskCache(ocFile)
                 if (thumbnail != null && !ocFile.needsToUpdateThumbnail) {
                     imageView.setImageBitmap(thumbnail)
                 } else {
@@ -441,7 +440,7 @@ class FileDetailsFragment : FileFragment() {
                         }
                         val asyncDrawable = ThumbnailsCacheManager.AsyncThumbnailDrawable(MainApp.appContext.resources, thumbnail, task)
                         imageView.setImageDrawable(asyncDrawable)
-                        task.execute(ocFile)
+                        ThumbnailsCacheManager.executeThumbnailTask(task, ocFile)
                     }
                 }
             } else {
