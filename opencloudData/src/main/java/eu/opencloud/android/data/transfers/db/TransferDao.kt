@@ -63,6 +63,22 @@ interface TransferDao {
     @Query(UPDATE_TRANSFER_STORAGE_DIRECTORY)
     fun updateTransferStorageDirectoryInLocalPath(id: Long, oldDirectory: String, newDirectory: String)
 
+    // TUS state updates
+    @Query(UPDATE_TUS_STATE)
+    fun updateTusState(
+        id: Long,
+        tusUploadUrl: String?,
+        tusUploadLength: Long?,
+        tusUploadMetadata: String?,
+        tusUploadChecksum: String?,
+        tusResumableVersion: String?,
+        tusUploadExpires: Long?,
+        tusUploadConcat: String?,
+    )
+
+    @Query(UPDATE_TUS_URL)
+    fun updateTusUrl(id: Long, tusUploadUrl: String?)
+
     @Query(DELETE_TRANSFER_WITH_ID)
     fun deleteTransferWithId(id: Long)
 
@@ -123,6 +139,24 @@ interface TransferDao {
         private const val UPDATE_TRANSFER_STORAGE_DIRECTORY = """
             UPDATE $TRANSFERS_TABLE_NAME
             SET localPath = `REPLACE`(localPath, :oldDirectory, :newDirectory)
+            WHERE id = :id
+        """
+
+        private const val UPDATE_TUS_STATE = """
+            UPDATE $TRANSFERS_TABLE_NAME
+            SET tusUploadUrl = :tusUploadUrl,
+                tusUploadLength = :tusUploadLength,
+                tusUploadMetadata = :tusUploadMetadata,
+                tusUploadChecksum = :tusUploadChecksum,
+                tusResumableVersion = :tusResumableVersion,
+                tusUploadExpires = :tusUploadExpires,
+                tusUploadConcat = :tusUploadConcat
+            WHERE id = :id
+        """
+
+        private const val UPDATE_TUS_URL = """
+            UPDATE $TRANSFERS_TABLE_NAME
+            SET tusUploadUrl = :tusUploadUrl
             WHERE id = :id
         """
 

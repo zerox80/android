@@ -52,7 +52,7 @@ class ChunkFromFileRequestBody(
     }
 
     override fun contentLength(): Long =
-        chunkSize.coerceAtMost(channel.size() - channel.position())
+        chunkSize.coerceAtMost((channel.size() - offset).coerceAtLeast(0))
 
     override fun writeTo(sink: BufferedSink) {
         var readCount: Int
@@ -62,20 +62,27 @@ class ChunkFromFileRequestBody(
 
             val maxCount = (offset + chunkSize).coerceAtMost(channel.size())
             while (channel.position() < maxCount) {
+                val remainingForChunk = (maxCount - channel.position()).toInt()
+                if (remainingForChunk <= 0) break
+                // limit how much we read so we never consume past the chunk boundary
+                val toRead = minOf(buffer.capacity(), remainingForChunk)
+                buffer.limit(toRead)
                 readCount = channel.read(buffer)
-                val bytesToWriteInBuffer = readCount.toLong().coerceAtMost(file.length() - alreadyTransferred).toInt()
-                sink.buffer.write(buffer.array(), 0, bytesToWriteInBuffer)
+                if (readCount == -1) break
+                sink.buffer.write(buffer.array(), 0, readCount)
                 sink.flush()
                 buffer.clear()
 
-                if (alreadyTransferred < maxCount) {  // condition to avoid accumulate progress for repeated chunks
-                    alreadyTransferred += readCount.toLong()
+                if (readCount > 0) {
+                    alreadyTransferred = (alreadyTransferred + readCount.toLong()).coerceAtMost(chunkSize)
                 }
+
+                val totalTransferred = offset + alreadyTransferred
 
                 synchronized(dataTransferListeners) {
                     iterator = dataTransferListeners.iterator()
                     while (iterator.hasNext()) {
-                        iterator.next().onTransferProgress(readCount.toLong(), alreadyTransferred, file.length(), file.absolutePath)
+                        iterator.next().onTransferProgress(readCount.toLong(), totalTransferred, file.length(), file.absolutePath)
                     }
                 }
             }
@@ -86,6 +93,7 @@ class ChunkFromFileRequestBody(
 
     fun setOffset(newOffset: Long) {
         offset = newOffset
+        alreadyTransferred = 0
     }
 
 }

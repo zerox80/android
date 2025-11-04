@@ -241,6 +241,10 @@ public class RemoteOperationResult<T>
                         ResultCode.SPECIFIC_METHOD_NOT_ALLOWED
                 );
                 break;
+            case HttpConstants.HTTP_PRECONDITION_FAILED:
+                // For TUS, 412 typically indicates Upload-Offset precondition mismatch
+                mCode = ResultCode.CONFLICT;
+                break;
             case HttpConstants.HTTP_TOO_EARLY:
                 mCode = ResultCode.TOO_EARLY;
                 break;
@@ -309,7 +313,7 @@ public class RemoteOperationResult<T>
                     mCode = ResultCode.RESOURCE_LOCKED;
                     break;
                 case HttpConstants.HTTP_INTERNAL_SERVER_ERROR:           // 500
-                    mCode = ResultCode.INSTANCE_NOT_CONFIGURED;     // assuming too much...
+                    mCode = ResultCode.UNHANDLED_HTTP_CODE;         // treat as generic server error
                     break;
                 case HttpConstants.HTTP_SERVICE_UNAVAILABLE:             // 503
                     mCode = ResultCode.SERVICE_UNAVAILABLE;

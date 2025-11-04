@@ -84,6 +84,7 @@ class OCLocalCapabilitiesDataSource(
                 filesVersioning = CapabilityBooleanType.fromValue(filesVersioning),
                 filesPrivateLinks = CapabilityBooleanType.fromValue(filesPrivateLinks),
                 filesAppProviders = appProviders,
+                filesTusSupport = tusSupport,
                 spaces = spaces,
                 passwordPolicy = passwordPolicy,
             )
@@ -120,6 +121,7 @@ class OCLocalCapabilitiesDataSource(
                 filesVersioning = filesVersioning.value,
                 filesPrivateLinks = filesPrivateLinks.value,
                 appProviders = filesAppProviders,
+                tusSupport = filesTusSupport,
                 spaces = spaces,
                 passwordPolicy = passwordPolicy,
             )

@@ -33,7 +33,6 @@ import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
 import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.domain.exceptions.LocalFileNotFoundException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
-import eu.opencloud.android.domain.files.model.OCFile.Companion.PATH_SEPARATOR
 import eu.opencloud.android.domain.files.usecases.CleanConflictUseCase
 import eu.opencloud.android.domain.files.usecases.GetFileByRemotePathUseCase
 import eu.opencloud.android.domain.files.usecases.GetWebDavUrlForSpaceUseCase
@@ -50,15 +49,10 @@ import eu.opencloud.android.lib.common.network.OnDatatransferProgressListener
 import eu.opencloud.android.lib.common.operations.RemoteOperationResult.ResultCode
 import eu.opencloud.android.lib.resources.files.CheckPathExistenceRemoteOperation
 import eu.opencloud.android.lib.resources.files.CreateRemoteFolderOperation
-import eu.opencloud.android.lib.resources.files.FileUtils
 import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
-import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation
-import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation.Companion.CHUNK_SIZE
-import eu.opencloud.android.lib.resources.files.services.implementation.OCChunkService
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
 import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
-import eu.opencloud.android.utils.SecurityUtils
 import eu.opencloud.android.utils.UPLOAD_NOTIFICATION_CHANNEL_ID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +61,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import timber.log.Timber
 import java.io.File
+import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 
 class UploadFileFromFileSystemWorker(
     private val appContext: Context,
@@ -78,11 +74,11 @@ class UploadFileFromFileSystemWorker(
 
     private lateinit var account: Account
     private lateinit var fileSystemPath: String
-    private lateinit var lastModified: String
+    private var lastModified: String = ""
     private lateinit var behavior: UploadBehavior
     private lateinit var uploadPath: String
     private lateinit var mimetype: String
-    private var removeLocal: Boolean = true
+    private var removeLocal: Boolean = false
     private var uploadIdInStorageManager: Long = -1
     private lateinit var ocTransfer: OCTransfer
     private var fileSize: Long = 0
@@ -99,6 +95,7 @@ class UploadFileFromFileSystemWorker(
     private var lastPercent = 0
 
     private val transferRepository: TransferRepository by inject()
+    private val tusUploadHelper by lazy { TusUploadHelper(transferRepository) }
 
     override suspend fun doWork(): Result {
 
@@ -120,6 +117,12 @@ class UploadFileFromFileSystemWorker(
             Result.success()
         } catch (throwable: Throwable) {
             Timber.e(throwable)
+
+            if (shouldRetry(throwable)) {
+                Timber.i("Retrying upload %d after transient failure", uploadIdInStorageManager)
+                return Result.retry()
+            }
+
             showNotification(throwable)
             updateUploadsDatabaseWithResult(throwable)
             Result.failure()
@@ -133,13 +136,13 @@ class UploadFileFromFileSystemWorker(
         val paramBehavior = workerParameters.inputData.getString(KEY_PARAM_BEHAVIOR)
         val paramFileSystemUri = workerParameters.inputData.getString(KEY_PARAM_LOCAL_PATH)
         val paramUploadId = workerParameters.inputData.getLong(KEY_PARAM_UPLOAD_ID, -1)
-        val paramRemoveLocal = workerParameters.inputData.getBoolean(KEY_PARAM_REMOVE_LOCAL, true)
+        val paramRemoveLocal = workerParameters.inputData.getBoolean(KEY_PARAM_REMOVE_LOCAL, false)
 
         account = AccountUtils.getOpenCloudAccountByName(appContext, paramAccountName) ?: return false
         fileSystemPath = paramFileSystemUri.takeUnless { it.isNullOrBlank() } ?: return false
         uploadPath = paramUploadPath ?: return false
         behavior = paramBehavior?.let { UploadBehavior.valueOf(it) } ?: return false
-        lastModified = paramLastModified ?: return false
+        lastModified = paramLastModified.orEmpty()
         uploadIdInStorageManager = paramUploadId.takeUnless { it == -1L } ?: return false
         ocTransfer = retrieveUploadInfoFromDatabase() ?: return false
         removeLocal = paramRemoveLocal
@@ -166,6 +169,18 @@ class UploadFileFromFileSystemWorker(
         }
         mimetype = fileInFileSystem.extension
         fileSize = fileInFileSystem.length()
+        ensureValidLastModified(fileInFileSystem)
+    }
+
+    private fun ensureValidLastModified(sourceFile: File) {
+        val current = lastModified.toLongOrNull()
+        if (current != null && current > 0) {
+            return
+        }
+
+        val fallbackMillis = sourceFile.lastModified().takeIf { it > 0 }
+            ?: System.currentTimeMillis()
+        lastModified = (fallbackMillis / 1000L).toString()
     }
 
     private fun getClientForThisUpload(): OpenCloudClient =
@@ -229,14 +244,67 @@ class UploadFileFromFileSystemWorker(
                 accountName = account.name
             )
         )
-        val isChunkingAllowed = capabilitiesForAccount != null && capabilitiesForAccount.isChunkingAllowed()
-        Timber.d("Chunking is allowed: %s, and file size is greater than the minimum chunk size: %s", isChunkingAllowed, fileSize > CHUNK_SIZE)
+        val tusSupport = capabilitiesForAccount?.filesTusSupport
+        val supportsTus = tusSupport != null
 
-        if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
-            uploadChunkedFile(client)
+        val hasPendingTusSession = !ocTransfer.tusUploadUrl.isNullOrBlank()
+        val shouldTryTus = hasPendingTusSession || (supportsTus && fileSize >= TusUploadHelper.DEFAULT_CHUNK_SIZE)
+
+        var attemptedTus = false
+        if (shouldTryTus) {
+            attemptedTus = true
+            Timber.d(
+                "Attempting TUS upload (size=%d, threshold=%d, resume=%s)",
+                fileSize,
+                TusUploadHelper.DEFAULT_CHUNK_SIZE,
+                hasPendingTusSession
+            )
+            val tusSucceeded = try {
+                tusUploadHelper.upload(
+                    client = client,
+                    transfer = ocTransfer,
+                    uploadId = uploadIdInStorageManager,
+                    localPath = fileSystemPath,
+                    remotePath = uploadPath,
+                    fileSize = fileSize,
+                    mimeType = mimetype,
+                    lastModified = lastModified,
+                    tusSupport = tusSupport,
+                    progressListener = this,
+                    progressCallback = ::updateProgressFromTus,
+                    spaceWebDavUrl = spaceWebDavUrl,
+                )
+                true
+            } catch (throwable: Throwable) {
+                Timber.w(throwable, "TUS upload failed, falling back to single PUT")
+                if (shouldRetry(throwable)) {
+                    throw throwable
+                }
+                false
+            }
+
+            if (tusSucceeded) {
+                if (removeLocal) {
+                    removeLocalFile()
+                }
+                Timber.d("TUS upload completed for %s", uploadPath)
+                return
+            }
         } else {
-            uploadPlainFile(client)
+            Timber.d(
+                "Skipping TUS: file too small or unsupported (size=%d, threshold=%d, supportsTus=%s)",
+                fileSize,
+                TusUploadHelper.DEFAULT_CHUNK_SIZE,
+                supportsTus
+            )
         }
+
+        if (attemptedTus) {
+            clearTusState()
+        }
+
+        Timber.d("Falling back to single PUT upload for %s", uploadPath)
+        uploadPlainFile(client)
     }
 
     private fun uploadPlainFile(client: OpenCloudClient) {
@@ -258,48 +326,42 @@ class UploadFileFromFileSystemWorker(
         }
     }
 
-    private fun uploadChunkedFile(client: OpenCloudClient) {
-        val immutableHashForChunkedFile = SecurityUtils.stringToMD5Hash(uploadPath) + System.currentTimeMillis()
-        // Step 1: Create folder where the chunks will be uploaded.
-        val createChunksRemoteFolderOperation = CreateRemoteFolderOperation(
-            remotePath = immutableHashForChunkedFile,
-            createFullPath = false,
-            isChunksFolder = true
-        )
-        executeRemoteOperation { createChunksRemoteFolderOperation.execute(client) }
+    private fun updateProgressFromTus(offset: Long, totalSize: Long) {
+        if (totalSize <= 0) return
+        val percent: Int = (100.0 * offset.toDouble() / totalSize.toDouble()).toInt()
+        if (percent == lastPercent) return
 
-        // Step 2: Upload file by chunks
-        uploadFileOperation = ChunkedUploadFromFileSystemOperation(
-            transferId = immutableHashForChunkedFile,
-            localPath = fileSystemPath,
-            remotePath = uploadPath,
-            mimeType = mimetype,
-            lastModifiedTimestamp = lastModified,
-            requiredEtag = eTagInConflict,
-        ).apply {
-            addDataTransferProgressListener(this@UploadFileFromFileSystemWorker)
+        CoroutineScope(Dispatchers.IO).launch {
+            val progress = workDataOf(DownloadFileWorker.WORKER_KEY_PROGRESS to percent)
+            setProgress(progress)
         }
-
-        val result = executeRemoteOperation { uploadFileOperation.execute(client) }
-
-        // Step 3: Move remote file to the final remote destination
-        val ocChunkService = OCChunkService(client)
-        ocChunkService.moveFile(
-            sourceRemotePath = "$immutableHashForChunkedFile$PATH_SEPARATOR${FileUtils.FINAL_CHUNKS_FILE}",
-            targetRemotePath = uploadPath,
-            fileLastModificationTimestamp = lastModified,
-            fileLength = fileSize
-        )
-
-        // Step 4: Remove tmp file folder after uploading
-        if (result == Unit && removeLocal) {
-            removeLocalFile()
-        }
+        lastPercent = percent
     }
 
     private fun removeLocalFile() {
         val fileDeleted = File(fileSystemPath).delete()
         Timber.d("File with path: $fileSystemPath has been removed: $fileDeleted after uploading.")
+    }
+
+    private fun clearTusState() {
+        transferRepository.updateTusState(
+            id = uploadIdInStorageManager,
+            tusUploadUrl = null,
+            tusUploadLength = null,
+            tusUploadMetadata = null,
+            tusUploadChecksum = null,
+            tusResumableVersion = null,
+            tusUploadExpires = null,
+            tusUploadConcat = null,
+        )
+    }
+
+    private fun shouldRetry(throwable: Throwable?): Boolean {
+        if (throwable == null) return false
+        if (throwable is LocalFileNotFoundException) return false
+        if (throwable is CancellationException) return true
+        if (throwable is IOException) return true
+        return shouldRetry(throwable.cause)
     }
 
     private fun updateUploadsDatabaseWithResult(throwable: Throwable?) {
@@ -397,12 +459,12 @@ class UploadFileFromFileSystemWorker(
     }
 
     companion object {
-        const val KEY_PARAM_ACCOUNT_NAME = "KEY_PARAM_ACCOUNT_NAME"
-        const val KEY_PARAM_BEHAVIOR = "KEY_PARAM_BEHAVIOR"
-        const val KEY_PARAM_LOCAL_PATH = "KEY_PARAM_LOCAL_PATH"
-        const val KEY_PARAM_LAST_MODIFIED = "KEY_PARAM_LAST_MODIFIED"
-        const val KEY_PARAM_UPLOAD_PATH = "KEY_PARAM_UPLOAD_PATH"
-        const val KEY_PARAM_UPLOAD_ID = "KEY_PARAM_UPLOAD_ID"
-        const val KEY_PARAM_REMOVE_LOCAL = "KEY_REMOVE_LOCAL"
+        const val KEY_PARAM_ACCOUNT_NAME: String = "KEY_PARAM_ACCOUNT_NAME"
+        const val KEY_PARAM_BEHAVIOR: String = "KEY_PARAM_BEHAVIOR"
+        const val KEY_PARAM_LOCAL_PATH: String = "KEY_PARAM_LOCAL_PATH"
+        const val KEY_PARAM_LAST_MODIFIED: String = "KEY_PARAM_LAST_MODIFIED"
+        const val KEY_PARAM_UPLOAD_PATH: String = "KEY_PARAM_UPLOAD_PATH"
+        const val KEY_PARAM_UPLOAD_ID: String = "KEY_PARAM_UPLOAD_ID"
+        const val KEY_PARAM_REMOVE_LOCAL: String = "KEY_REMOVE_LOCAL"
     }
 }
