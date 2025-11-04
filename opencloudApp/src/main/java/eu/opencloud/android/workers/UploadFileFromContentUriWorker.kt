@@ -38,6 +38,12 @@ import eu.opencloud.android.data.executeRemoteOperation
 import eu.opencloud.android.data.providers.LocalStorageProvider
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
 import eu.opencloud.android.domain.exceptions.LocalFileNotFoundException
+import eu.opencloud.android.domain.exceptions.NetworkErrorException
+import eu.opencloud.android.domain.exceptions.NoConnectionWithServerException
+import eu.opencloud.android.domain.exceptions.NoNetworkConnectionException
+import eu.opencloud.android.domain.exceptions.ServerConnectionTimeoutException
+import eu.opencloud.android.domain.exceptions.ServerNotReachableException
+import eu.opencloud.android.domain.exceptions.ServerResponseTimeoutException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
 import eu.opencloud.android.domain.files.usecases.GetWebDavUrlForSpaceUseCase
 import eu.opencloud.android.domain.transfers.TransferRepository
@@ -57,11 +63,10 @@ import eu.opencloud.android.lib.resources.files.CreateRemoteFolderOperation
 import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
-import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
 import eu.opencloud.android.utils.UPLOAD_NOTIFICATION_CHANNEL_ID
+import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -97,6 +102,10 @@ class UploadFileFromContentUriWorker(
 
     private var lastPercent = -1
 
+    private var foregroundInitialized = false
+    private var currentForegroundProgress = -1
+    private val foregroundScope = CoroutineScope(Dispatchers.IO)
+
     private val transferRepository: TransferRepository by inject()
     private val getWebdavUrlForSpaceUseCase: GetWebDavUrlForSpaceUseCase by inject()
     private val getStoredCapabilitiesUseCase: GetStoredCapabilitiesUseCase by inject()
@@ -110,13 +119,13 @@ class UploadFileFromContentUriWorker(
         uploadDocument(clientForThisUpload)
         updateUploadsDatabaseWithResult(null)
         Result.success()
-    } catch (throwable: Throwable) {
+    }catch (throwable: Throwable) {
         Timber.e(throwable)
 
         if (shouldRetry(throwable)) {
             Timber.i("Retrying upload %d after transient failure", uploadIdInStorageManager)
             Result.retry()
-        } else {
+        }else {
             showNotification(throwable)
             updateUploadsDatabaseWithResult(throwable)
             Result.failure()
@@ -165,7 +174,7 @@ class UploadFileFromContentUriWorker(
             if (it != null) {
                 Timber.d("Upload with id ($uploadIdInStorageManager) has been found in database.")
                 Timber.d("Upload info: $it")
-            } else {
+            }else {
                 Timber.w("Upload with id ($uploadIdInStorageManager) has not been found in database.")
                 Timber.w("$uploadPath won't be uploaded")
             }
@@ -306,7 +315,7 @@ class UploadFileFromContentUriWorker(
                     spaceWebDavUrl = spaceWebDavUrl,
                 )
                 true
-            } catch (throwable: Throwable) {
+            }catch (throwable: Throwable) {
                 Timber.w(throwable, "TUS upload failed, falling back to single PUT")
                 if (shouldRetry(throwable)) {
                     throw throwable
@@ -319,7 +328,7 @@ class UploadFileFromContentUriWorker(
                 Timber.d("TUS upload completed for %s", uploadPath)
                 return
             }
-        } else {
+        }else {
             Timber.d(
                 "Skipping TUS: file too small or unsupported (size=%d, threshold=%d, supportsTus=%s)",
                 fileSize,
@@ -388,6 +397,13 @@ class UploadFileFromContentUriWorker(
         if (throwable is UnauthorizedException || throwable is LocalFileNotFoundException) return false
         if (throwable is CancellationException) return true
         if (throwable is IOException) return true
+        // Retry on network-related exceptions
+        if (throwable is NoConnectionWithServerException) return true
+        if (throwable is NoNetworkConnectionException) return true
+        if (throwable is ServerNotReachableException) return true
+        if (throwable is ServerConnectionTimeoutException) return true
+        if (throwable is ServerResponseTimeoutException) return true
+        if (throwable is NetworkErrorException) return true
         return shouldRetry(throwable.cause)
     }
 
@@ -403,7 +419,7 @@ class UploadFileFromContentUriWorker(
     private fun getUploadStatusForThrowable(throwable: Throwable?): TransferStatus =
         if (throwable == null) {
             TransferStatus.TRANSFER_SUCCEEDED
-        } else {
+        }else {
             TransferStatus.TRANSFER_FAILED
         }
 
@@ -416,7 +432,7 @@ class UploadFileFromContentUriWorker(
 
         val pendingIntent = if (needsToUpdateCredentials) {
             NotificationUtils.composePendingIntentToRefreshCredentials(appContext, account)
-        } else {
+        }else {
             NotificationUtils.composePendingIntentToUploadList(appContext)
         }
 
