@@ -167,7 +167,7 @@ public class ReceiveExternalFilesAdapter extends BaseAdapter implements ListAdap
                             task
                     );
                     fileIcon.setImageDrawable(asyncDrawable);
-                    task.execute(file);
+                    ThumbnailsCacheManager.executeThumbnailTask(task, file);
                 }
             }
         } else {

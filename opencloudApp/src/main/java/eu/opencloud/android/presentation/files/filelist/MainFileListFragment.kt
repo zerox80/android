@@ -603,29 +603,28 @@ class MainFileListFragment : Fragment(),
                 } else {
                     // Set file icon depending on its mimetype. Ask for thumbnail later.
                     thumbnailBottomSheet.setImageResource(MimetypeIconUtil.getFileTypeIconId(file.mimeType, file.fileName))
-                    if (file.remoteId != null) {
-                        val thumbnail = ThumbnailsCacheManager.getBitmapFromDiskCache(file.remoteId)
-                        if (thumbnail != null) {
-                            thumbnailBottomSheet.setImageBitmap(thumbnail)
-                        }
-                        if (file.needsToUpdateThumbnail && ThumbnailsCacheManager.cancelPotentialThumbnailWork(file, thumbnailBottomSheet)) {
-                            // generate new Thumbnail
-                            val task = ThumbnailsCacheManager.ThumbnailGenerationTask(
-                                thumbnailBottomSheet,
-                                AccountUtils.getCurrentOpenCloudAccount(requireContext())
-                            )
-                            val asyncDrawable = ThumbnailsCacheManager.AsyncThumbnailDrawable(resources, thumbnail, task)
 
-                            // If drawable is not visible, do not update it.
-                            if (asyncDrawable.minimumHeight > 0 && asyncDrawable.minimumWidth > 0) {
-                                thumbnailBottomSheet.setImageDrawable(asyncDrawable)
-                            }
-                            task.execute(file)
-                        }
+                    val thumbnail = ThumbnailsCacheManager.getBitmapFromDiskCache(file)
+                    if (thumbnail != null) {
+                        thumbnailBottomSheet.setImageBitmap(thumbnail)
+                    }
+                    if (file.needsToUpdateThumbnail && ThumbnailsCacheManager.cancelPotentialThumbnailWork(file, thumbnailBottomSheet)) {
+                        // generate new Thumbnail
+                        val task = ThumbnailsCacheManager.ThumbnailGenerationTask(
+                            thumbnailBottomSheet,
+                            AccountUtils.getCurrentOpenCloudAccount(requireContext())
+                        )
+                        val asyncDrawable = ThumbnailsCacheManager.AsyncThumbnailDrawable(resources, thumbnail, task)
 
-                        if (file.mimeType == "image/png") {
-                            thumbnailBottomSheet.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.background_color))
+                        // If drawable is not visible, do not update it.
+                        if (asyncDrawable.minimumHeight > 0 && asyncDrawable.minimumWidth > 0) {
+                            thumbnailBottomSheet.setImageDrawable(asyncDrawable)
                         }
+                        ThumbnailsCacheManager.executeThumbnailTask(task, file)
+                    }
+
+                    if (file.mimeType == "image/png") {
+                        thumbnailBottomSheet.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.background_color))
                     }
                 }
 
