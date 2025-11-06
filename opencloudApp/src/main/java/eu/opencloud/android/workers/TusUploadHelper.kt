@@ -21,6 +21,13 @@ import kotlin.math.min
 class TusUploadHelper(
     private val transferRepository: TransferRepository,
 ) {
+    @Volatile
+    private var cancelled = false
+    
+    fun cancel() {
+        cancelled = true
+        Timber.d("TUS: upload cancellation requested")
+    }
 
     /**
      * Runs the full TUS upload flow. On success the method returns normally. On failure an exception
@@ -167,11 +174,16 @@ class TusUploadHelper(
         val httpOverride = tusSupport?.httpMethodOverride
         var consecutiveFailures = 0
 
-        while (offset < fileSize) {
+        while (offset < fileSize && !cancelled) {
             val remaining = fileSize - offset
             val chunkSize = min(DEFAULT_CHUNK_SIZE, min(remaining, serverMaxChunk ?: Long.MAX_VALUE))
             Timber.d("TUS: uploading chunk=%d at offset=%d remaining=%d", chunkSize, offset, remaining)
 
+            if (cancelled) {
+                Timber.i("TUS: upload cancelled by user at offset %d", offset)
+                throw java.io.InterruptedIOException("TUS upload cancelled by user")
+            }
+            
             val patchOperation = PatchTusUploadChunkRemoteOperation(
                 localPath = localPath,
                 uploadUrl = resolvedTusUrl,

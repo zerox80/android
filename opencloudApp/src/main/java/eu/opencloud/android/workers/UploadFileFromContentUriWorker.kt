@@ -361,6 +361,12 @@ class UploadFileFromContentUriWorker(
     }
 
     private fun updateProgressFromTus(offset: Long, totalSize: Long) {
+        if (this.isStopped) {
+            Timber.w("Cancelling TUS upload. The worker is stopped by user or system")
+            tusUploadHelper.cancel()
+            foregroundJob.cancel()
+        }
+        
         if (totalSize <= 0) return
         val percent: Int = (100.0 * offset.toDouble() / totalSize.toDouble()).toInt()
         if (percent == lastPercent) return
@@ -453,6 +459,15 @@ class UploadFileFromContentUriWorker(
         totalToTransfer: Long,
         filePath: String
     ) {
+        if (this.isStopped) {
+            Timber.w("Cancelling upload operation. The worker is stopped by user or system")
+            if (::uploadFileOperation.isInitialized) {
+                uploadFileOperation.cancel()
+                uploadFileOperation.removeDataTransferProgressListener(this)
+            }
+            foregroundJob.cancel()
+        }
+        
         val percent: Int = (100.0 * totalTransferredSoFar.toDouble() / totalToTransfer.toDouble()).toInt()
         if (percent == lastPercent) return
 
