@@ -122,6 +122,16 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     private var pendingAuthorizationIntent: Intent? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (intent.data != null && (intent.data?.getQueryParameter("code") != null || intent.data?.getQueryParameter("error") != null)) {
+            if (!isTaskRoot) {
+                val newIntent = Intent(this, LoginActivity::class.java)
+                newIntent.data = intent.data
+                newIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(newIntent)
+                finish()
+                return
+            }
+        }
         super.onCreate(savedInstanceState)
 
         // Log OAuth redirect details for debugging (especially Firefox issues)
@@ -925,9 +935,12 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             outState.putString(KEY_SERVER_BASE_URL, serverBaseUrl)
         }
         outState.putBoolean(KEY_OIDC_SUPPORTED, oidcSupported)
+<<<<<<< HEAD
         outState.putString(KEY_CODE_VERIFIER, authenticationViewModel.codeVerifier)
         outState.putString(KEY_CODE_CHALLENGE, authenticationViewModel.codeChallenge)
         outState.putString(KEY_OIDC_STATE, authenticationViewModel.oidcState)
+=======
+>>>>>>> 19b5f1a2a (Fix: Critical login state and authentication issues)
     }
 
     override fun finish() {
