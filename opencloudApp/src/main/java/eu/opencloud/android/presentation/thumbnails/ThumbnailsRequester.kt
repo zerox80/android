@@ -156,8 +156,26 @@ object ThumbnailsRequester : KoinComponent {
 
             val request = chain.request().newBuilder()
             requestHeaders.toHeaders().forEach { request.addHeader(it.first, it.second) }
-            return chain.proceed(request.build()).newBuilder().removeHeader("Cache-Control")
-                .addHeader("Cache-Control", "max-age=5000, must-revalidate").build().also { Timber.d("Header :" + it.headers) }
+            val response = chain.proceed(request.build())
+            var builder = response.newBuilder()
+            var changed = false
+
+            val cacheControl = response.header("Cache-Control")
+            if (cacheControl.isNullOrEmpty() || cacheControl.contains("no-cache")) {
+                builder.removeHeader("Cache-Control")
+                builder.addHeader("Cache-Control", "max-age=5000, must-revalidate")
+                changed = true
+            }
+
+            if (chain.request().url.toString().contains("/avatar/") && response.header("Content-Type").isNullOrEmpty()) {
+                builder.addHeader("Content-Type", "image/png")
+                changed = true
+            }
+
+            if (changed) {
+                return builder.build().also { Timber.d("Header :" + it.headers) }
+            }
+            return response
         }
     }
 }
