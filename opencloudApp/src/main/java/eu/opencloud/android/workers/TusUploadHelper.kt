@@ -23,7 +23,7 @@ class TusUploadHelper(
 ) {
     @Volatile
     private var cancelled = false
-    
+
     fun cancel() {
         cancelled = true
         Timber.d("TUS: upload cancellation requested")
@@ -177,7 +177,7 @@ class TusUploadHelper(
                 Timber.i("TUS: upload cancelled by user at offset %d", offset)
                 throw java.io.InterruptedIOException("TUS upload cancelled by user")
             }
-            
+
             val patchOperation = PatchTusUploadChunkRemoteOperation(
                 localPath = localPath,
                 uploadUrl = resolvedTusUrl,

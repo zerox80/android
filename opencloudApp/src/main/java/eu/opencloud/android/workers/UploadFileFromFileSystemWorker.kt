@@ -331,7 +331,7 @@ class UploadFileFromFileSystemWorker(
             Timber.w("Cancelling TUS upload. The worker is stopped by user or system")
             tusUploadHelper.cancel()
         }
-        
+
         if (totalSize <= 0) return
         val percent: Int = (100.0 * offset.toDouble() / totalSize.toDouble()).toInt()
         if (percent == lastPercent) return
@@ -458,7 +458,7 @@ class UploadFileFromFileSystemWorker(
                 uploadFileOperation.removeDataTransferProgressListener(this)
             }
         }
-        
+
         val percent: Int = (100.0 * totalTransferredSoFar.toDouble() / totalToTransfer.toDouble()).toInt()
         if (percent == lastPercent) return
 
