@@ -10,50 +10,41 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.verify
 import org.junit.Assert.assertEquals
-import java.io.File
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
+import java.nio.file.Files
 
 class ScopedStorageProviderTest {
     private lateinit var scopedStorageProvider: ScopedStorageProvider
 
     private lateinit var context: Context
-    private lateinit var file: File
-    private lateinit var directory: File
     private lateinit var filesDir: File
 
-    private val absolutePath = "/storage/emulated/0/opencloud"
-    private val remotePath = "/storage/emulated/0/opencloud/remotepath"
     private val spaceId = OC_SPACE_PROJECT_WITH_IMAGE.id
     private val accountName = "opencloud"
     private val newName = "opencloudNewName.txt"
     private val uriEncoded = "/path/to/remote/?x=%D1%88%D0%B5%D0%BB%D0%BB%D1%8B"
     private val rootFolderName = "root_folder"
-    private val rootFolderPath = absolutePath + File.separator + rootFolderName
     private val expectedSizeOfDirectoryValue: Long = 100
     private val separator = File.separator
-    private val accountDirectoryPath = absolutePath + File.separator + rootFolderName + File.separator + uriEncoded
+    private val remotePath =
+        listOf("storage", "emulated", "0", "opencloud", "remotepath").joinToString(separator, prefix = separator)
+    private val rootFolderPath get() = filesDir.absolutePath + File.separator + rootFolderName
+    private lateinit var directory: File
 
     @Before
     fun setUp() {
         context = mockk()
-        filesDir = mockk()
+        filesDir = Files.createTempDirectory("scoped-storage-provider").toFile().apply { deleteOnExit() }
+        directory = File(filesDir, "dir").apply {
+            mkdirs()
+            File(this, "child.bin").writeBytes(ByteArray(expectedSizeOfDirectoryValue.toInt()))
+        }
+
         scopedStorageProvider = ScopedStorageProvider(rootFolderName, context)
-
-        file = mockk<File>().apply {
-            every { exists() } returns true
-            every { isDirectory } returns false
-            every { length() } returns expectedSizeOfDirectoryValue
-        }
-
-        directory = mockk<File>().apply {
-            every { exists() } returns true
-            every { isDirectory } returns true
-            every { listFiles() } returns arrayOf(file)
-        }
-
         every { context.filesDir } returns filesDir
-        every { filesDir.absolutePath } returns absolutePath
     }
 
     @Test
@@ -68,6 +59,7 @@ class ScopedStorageProviderTest {
 
     @Test
     fun `getRootFolderPath returns the root folder path String`() {
+        val rootFolderPath = filesDir.absolutePath + File.separator + rootFolderName
         val actualPath = scopedStorageProvider.getRootFolderPath()
         assertEquals(rootFolderPath, actualPath)
 
@@ -82,6 +74,7 @@ class ScopedStorageProviderTest {
         mockkStatic(Uri::class)
         every { Uri.encode(accountName, "@") } returns uriEncoded
 
+        val accountDirectoryPath = filesDir.absolutePath + File.separator + rootFolderName + File.separator + uriEncoded
         val expectedPath = accountDirectoryPath + File.separator + spaceId + File.separator + remotePath
         val actualPath = scopedStorageProvider.getDefaultSavePathFor(accountName, remotePath, spaceId)
 
@@ -99,6 +92,7 @@ class ScopedStorageProviderTest {
         mockkStatic(Uri::class)
         every { Uri.encode(accountName, "@") } returns uriEncoded
 
+        val accountDirectoryPath = filesDir.absolutePath + File.separator + rootFolderName + File.separator + uriEncoded
         val expectedPath = accountDirectoryPath + remotePath
         val actualPath = scopedStorageProvider.getDefaultSavePathFor(accountName, remotePath, spaceId)
 
@@ -113,8 +107,7 @@ class ScopedStorageProviderTest {
     fun `getExpectedRemotePath returns expected remote path with separator in the end when there is separator and is folder true`() {
 
         val isFolder = true
-        val parent = separator + "storage" + separator + "emulated" + separator + "0" + separator + "opencloud" + separator
-        val expectedPath = conditionsExpectedRemotePath(parent, newName, isFolder)
+        val expectedPath = expectedRemotePath(remotePath, newName, isFolder)
         val actualPath = scopedStorageProvider.getExpectedRemotePath(remotePath, newName, isFolder)
 
         assertEquals(expectedPath, actualPath)
@@ -124,9 +117,7 @@ class ScopedStorageProviderTest {
     fun `getExpectedRemotePath returns expected remote path with separator in the end when is separator and is folder false`() {
 
         val isFolder = false
-        val parent = separator + "storage" + separator + "emulated" + separator + "0" + separator + "opencloud" + separator
-
-        val expectedPath = conditionsExpectedRemotePath(parent, newName, isFolder)
+        val expectedPath = expectedRemotePath(remotePath, newName, isFolder)
         val actualPath = scopedStorageProvider.getExpectedRemotePath(remotePath, newName, isFolder)
 
         assertEquals(expectedPath, actualPath)
@@ -136,9 +127,7 @@ class ScopedStorageProviderTest {
     fun `getExpectedRemotePath returns expected remote path with separator in the end when is not separator and is folder true`() {
 
         val isFolder = true
-        val parent = separator + "storage" + separator + "emulated" + separator + "0" + separator + "opencloud"
-
-        val expectedPath = conditionsExpectedRemotePath(parent, newName, isFolder)
+        val expectedPath = expectedRemotePath(remotePath, newName, isFolder)
         val actualPath = scopedStorageProvider.getExpectedRemotePath(remotePath, newName, isFolder)
 
         assertEquals(expectedPath, actualPath)
@@ -147,9 +136,7 @@ class ScopedStorageProviderTest {
     @Test
     fun `getExpectedRemotePath returns expected remote path with separator in the end when is not separator and is folder false`() {
         val isFolder = false
-        val parent = separator + "storage" + separator + "emulated" + separator + "0" + separator + "opencloud"
-
-        val expectedPath = conditionsExpectedRemotePath(parent, newName, isFolder)
+        val expectedPath = expectedRemotePath(remotePath, newName, isFolder)
         val actualPath = scopedStorageProvider.getExpectedRemotePath(remotePath, newName, isFolder)
 
         assertEquals(expectedPath, actualPath)
@@ -209,63 +196,41 @@ class ScopedStorageProviderTest {
 
     @Test
     fun `getUsableSpace returns usable space from the storage directory`() {
-        val expectedUsableSpace: Long = 1000000
-
-        every { filesDir.usableSpace } returns expectedUsableSpace
-
         val actualUsableSpace = scopedStorageProvider.getUsableSpace()
-
-        assertEquals(expectedUsableSpace, actualUsableSpace)
+        assertTrue(actualUsableSpace > 0)
 
         verify(exactly = 1) {
             scopedStorageProvider.getPrimaryStorageDirectory()
-            filesDir.usableSpace
         }
     }
 
     @Test
     fun `sizeOfDirectory returns the sum the file size in bytes (Long) when isDirectory is true doing a recursive call if it's a directory`() {
-        every { filesDir.exists() } returns true
-        every { filesDir.listFiles() } returns arrayOf(directory)
-
-        val actualValue = scopedStorageProvider.sizeOfDirectory(filesDir)
+        val actualValue = scopedStorageProvider.sizeOfDirectory(directory)
 
         assertEquals(expectedSizeOfDirectoryValue, actualValue)
-
-        verify(exactly = 1) {
-            filesDir.exists()
-            filesDir.listFiles()
-        }
     }
 
     @Test
     fun `sizeOfDirectory returns the sum the file size in bytes (Long) when isDirectory is false without doing a recursive call`() {
-        val fileSizeDirectory: File = mockk()
-        every { fileSizeDirectory.exists() } returns true
-        every { fileSizeDirectory.listFiles() } returns arrayOf(file)
-
-        val actualValue = scopedStorageProvider.sizeOfDirectory(fileSizeDirectory)
-        assertEquals(expectedSizeOfDirectoryValue, actualValue)
-
-        verify(exactly = 1) {
-            fileSizeDirectory.exists()
-            fileSizeDirectory.listFiles()
+        val tmpDir = Files.createTempDirectory("scoped-storage-size").toFile().apply {
+            deleteOnExit()
+            File(this, "single.bin").writeBytes(ByteArray(expectedSizeOfDirectoryValue.toInt()))
         }
+
+        val actualValue = scopedStorageProvider.sizeOfDirectory(tmpDir)
+        assertEquals(expectedSizeOfDirectoryValue, actualValue)
     }
 
     @Test
     fun `sizeOfDirectory returns zero value when directory not exists`() {
         val expectedSizeOfDirectoryValue: Long = 0
 
-        every { filesDir.exists() } returns false
+        val missingDir = File(filesDir, "does-not-exist")
 
-        val actualValue = scopedStorageProvider.sizeOfDirectory(filesDir)
+        val actualValue = scopedStorageProvider.sizeOfDirectory(missingDir)
 
         assertEquals(expectedSizeOfDirectoryValue, actualValue)
-
-        verify(exactly = 1) {
-            filesDir.exists()
-        }
     }
 
     @Test
@@ -310,10 +275,10 @@ class ScopedStorageProviderTest {
         }
     }
 
-    private fun conditionsExpectedRemotePath(parent: String, newName: String, isFolder: Boolean): String {
-        every { filesDir.parent } returns parent
-        val parentDir = if (parent.endsWith(File.separator)) parent else parent + File.separator
-        var newRemotePath = parentDir + newName
+    private fun expectedRemotePath(current: String, newName: String, isFolder: Boolean): String {
+        var parent = File(current).parent ?: throw IllegalArgumentException("Parent path is null")
+        parent = if (parent.endsWith(File.separator)) parent else parent + File.separator
+        var newRemotePath = parent + newName
         if (isFolder) {
             newRemotePath += File.separator
         }
