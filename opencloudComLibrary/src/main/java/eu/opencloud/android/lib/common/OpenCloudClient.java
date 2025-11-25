@@ -134,9 +134,10 @@ public class OpenCloudClient extends HttpClient {
             if (userAgent != null && !userAgent.isEmpty()) {
                 method.setRequestHeader(HttpConstants.USER_AGENT_HEADER, userAgent);
             }
-            String language = Locale.getDefault().getLanguage();
-            if (language != null && !language.isEmpty()) {
-                method.setRequestHeader(HttpConstants.ACCEPT_LANGUAGE_HEADER, language);
+
+            String acceptLanguage = Locale.getDefault().getLanguage();
+            if (acceptLanguage != null && !acceptLanguage.isEmpty()) {
+                method.setRequestHeader(HttpConstants.ACCEPT_LANGUAGE_HEADER, acceptLanguage);
             }
             method.setRequestHeader(HttpConstants.ACCEPT_ENCODING_HEADER, HttpConstants.ACCEPT_ENCODING_IDENTITY);
             if (mCredentials.getHeaderAuth() != null && !mCredentials.getHeaderAuth().isEmpty()) {
