@@ -24,7 +24,7 @@ package eu.opencloud.android.presentation.files.details
 
 import android.accounts.Account
 import android.content.Intent
-import android.graphics.Bitmap
+
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -38,7 +38,7 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.view.isVisible
 import androidx.work.WorkInfo
 import com.google.android.material.snackbar.Snackbar
-import eu.opencloud.android.MainApp
+
 import eu.opencloud.android.R
 import coil.load
 import eu.opencloud.android.databinding.FileDetailsFragmentBinding
@@ -430,7 +430,13 @@ class FileDetailsFragment : FileFragment() {
                 }
             }
             if (ocFile.isImage) {
-                imageView.load(ThumbnailsRequester.getPreviewUriForFile(OCFileWithSyncInfo(ocFile, null), fileDetailsViewModel.getAccount()), ThumbnailsRequester.getCoilImageLoader(fileDetailsViewModel.getAccount())) {
+                imageView.load(
+                    ThumbnailsRequester.getPreviewUriForFile(
+                        OCFileWithSyncInfo(ocFile, null),
+                        fileDetailsViewModel.getAccount()
+                    ),
+                    ThumbnailsRequester.getCoilImageLoader(fileDetailsViewModel.getAccount())
+                ) {
                     placeholder(MimetypeIconUtil.getFileTypeIconId(ocFile.mimeType, ocFile.fileName))
                     error(MimetypeIconUtil.getFileTypeIconId(ocFile.mimeType, ocFile.fileName))
                     crossfade(true)

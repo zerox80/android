@@ -25,7 +25,7 @@ package eu.opencloud.android.presentation.files.filelist
 
 import android.accounts.Account
 import android.content.Context
-import android.graphics.Bitmap
+
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
