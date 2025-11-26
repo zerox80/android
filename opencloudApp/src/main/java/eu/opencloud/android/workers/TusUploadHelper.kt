@@ -84,6 +84,19 @@ class TusUploadHelper(
                     mimetype = mimeType,
                     metadata = metadata,
                     useCreationWithUpload = true,
+                    firstChunkSize = firstChunkSize,
+                    tusUrl = "",
+                    collectionUrlOverride = collectionUrl,
+                ).execute(client)
+            }
+
+            if (creationResult == null) {
+                throw java.io.IOException("TUS: unable to create upload resource for $remotePath")
+            }
+
+            tusUrl = creationResult.uploadUrl
+            createdOffset = creationResult.uploadOffset
+            val metadataString = metadata.entries.joinToString(";") { (key, value) -> "$key=$value" }
 
             transferRepository.updateTusState(
                 id = uploadId,
