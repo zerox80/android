@@ -116,10 +116,6 @@ class MainApp : Application() {
 
         SingleSessionManager.setUserAgent(userAgent)
 
-        // initialise thumbnails cache on background thread
-        ThumbnailsCacheManager.InitDiskCacheTask().execute()
-
-
         initDependencyInjection()
 
         // register global protection with pass code, pattern lock and biometric lock
