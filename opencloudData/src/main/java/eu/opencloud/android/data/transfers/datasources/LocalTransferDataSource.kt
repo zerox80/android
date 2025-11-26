@@ -57,4 +57,18 @@ interface LocalTransferDataSource {
     fun getFinishedTransfers(): List<OCTransfer>
     fun clearFailedTransfers()
     fun clearSuccessfulTransfers()
+
+    // TUS state management
+    fun updateTusState(
+        id: Long,
+        tusUploadUrl: String?,
+        tusUploadLength: Long?,
+        tusUploadMetadata: String?,
+        tusUploadChecksum: String?,
+        tusResumableVersion: String?,
+        tusUploadExpires: Long?,
+        tusUploadConcat: String?,
+    )
+
+    fun updateTusUrl(id: Long, tusUploadUrl: String?)
 }

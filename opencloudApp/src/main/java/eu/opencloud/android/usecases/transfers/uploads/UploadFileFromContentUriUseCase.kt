@@ -24,10 +24,11 @@ package eu.opencloud.android.usecases.transfers.uploads
 
 import android.net.Uri
 import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.workDataOf
 import eu.opencloud.android.domain.BaseUseCase
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
 import eu.opencloud.android.workers.RemoveSourceFileWorker
@@ -39,17 +40,21 @@ class UploadFileFromContentUriUseCase(
 ) : BaseUseCase<Unit, UploadFileFromContentUriUseCase.Params>() {
 
     override fun run(params: Params) {
-        val inputDataUploadFileFromContentUriWorker = workDataOf(
-            UploadFileFromContentUriWorker.KEY_PARAM_ACCOUNT_NAME to params.accountName,
-            UploadFileFromContentUriWorker.KEY_PARAM_BEHAVIOR to params.behavior,
-            UploadFileFromContentUriWorker.KEY_PARAM_CONTENT_URI to params.contentUri.toString(),
-            UploadFileFromContentUriWorker.KEY_PARAM_LAST_MODIFIED to params.lastModifiedInSeconds,
-            UploadFileFromContentUriWorker.KEY_PARAM_UPLOAD_PATH to params.uploadPath,
-            UploadFileFromContentUriWorker.KEY_PARAM_UPLOAD_ID to params.uploadIdInStorageManager
-        )
-        val inputDataRemoveSourceFileWorker = workDataOf(
-            UploadFileFromContentUriWorker.KEY_PARAM_CONTENT_URI to params.contentUri.toString(),
-        )
+        val inputDataUploadFileFromContentUriWorker = Data.Builder()
+            .putString(UploadFileFromContentUriWorker.KEY_PARAM_ACCOUNT_NAME, params.accountName)
+            .putString(UploadFileFromContentUriWorker.KEY_PARAM_BEHAVIOR, params.behavior)
+            .putString(UploadFileFromContentUriWorker.KEY_PARAM_CONTENT_URI, params.contentUri.toString())
+            .putString(UploadFileFromContentUriWorker.KEY_PARAM_UPLOAD_PATH, params.uploadPath)
+            .putLong(UploadFileFromContentUriWorker.KEY_PARAM_UPLOAD_ID, params.uploadIdInStorageManager)
+            .apply {
+                params.lastModifiedInSeconds?.let {
+                    putString(UploadFileFromContentUriWorker.KEY_PARAM_LAST_MODIFIED, it)
+                }
+            }
+            .build()
+        val inputDataRemoveSourceFileWorker = Data.Builder()
+            .putString(UploadFileFromContentUriWorker.KEY_PARAM_CONTENT_URI, params.contentUri.toString())
+            .build()
 
         val networkRequired = if (params.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
         val constraints = Constraints.Builder()
@@ -64,25 +69,35 @@ class UploadFileFromContentUriUseCase(
             .addTag(params.uploadIdInStorageManager.toString())
             .build()
 
+        // Use unique work name based on upload ID to prevent concurrent uploads of same file
+        val uniqueWorkName = "upload_content_uri_${params.uploadIdInStorageManager}"
+
         val behavior = UploadBehavior.fromString(params.behavior)
         if (behavior == UploadBehavior.MOVE) {
             val removeSourceFileWorker = OneTimeWorkRequestBuilder<RemoveSourceFileWorker>()
                 .setInputData(inputDataRemoveSourceFileWorker)
                 .build()
-            workManager.beginWith(uploadFileFromContentUriWorker)
-                .then(removeSourceFileWorker) // File is already uploaded, so the original one can be removed if the behaviour is MOVE
-                .enqueue()
+            workManager.beginUniqueWork(
+                uniqueWorkName,
+                ExistingWorkPolicy.KEEP, // Keep existing work to prevent duplicate uploads
+                uploadFileFromContentUriWorker
+            ).then(removeSourceFileWorker) // File is already uploaded, so the original one can be removed if the behaviour is MOVE
+            .enqueue()
         } else {
-            workManager.enqueue(uploadFileFromContentUriWorker)
+            workManager.enqueueUniqueWork(
+                uniqueWorkName,
+                ExistingWorkPolicy.KEEP, // Keep existing work to prevent duplicate uploads
+                uploadFileFromContentUriWorker
+            )
         }
 
-        Timber.i("Plain upload of ${params.contentUri.path} has been enqueued.")
+        Timber.i("Plain upload of ${params.contentUri.path} has been enqueued with unique work name: $uniqueWorkName")
     }
 
     data class Params(
         val accountName: String,
         val contentUri: Uri,
-        val lastModifiedInSeconds: String,
+        val lastModifiedInSeconds: String?,
         val behavior: String,
         val uploadPath: String,
         val uploadIdInStorageManager: Long,

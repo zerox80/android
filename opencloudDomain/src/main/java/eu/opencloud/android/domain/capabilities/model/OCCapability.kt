@@ -52,6 +52,7 @@ data class OCCapability(
     val filesVersioning: CapabilityBooleanType,
     val filesPrivateLinks: CapabilityBooleanType,
     val filesAppProviders: AppProviders?,
+    val filesTusSupport: TusSupport?,
     val spaces: Spaces?,
     val passwordPolicy: PasswordPolicy?,
 ) {
@@ -76,6 +77,14 @@ data class OCCapability(
         val openUrl: String?,
         val openWebUrl: String?,
         val newUrl: String?,
+    )
+
+    data class TusSupport(
+        val version: String?,
+        val resumable: String?,
+        val extension: String?,
+        val maxChunkSize: Int?,
+        val httpMethodOverride: String?,
     )
 
     data class Spaces(

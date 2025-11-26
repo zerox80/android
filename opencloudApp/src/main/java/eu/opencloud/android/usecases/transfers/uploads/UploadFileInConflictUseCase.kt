@@ -23,6 +23,7 @@
 package eu.opencloud.android.usecases.transfers.uploads
 
 import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -126,8 +127,14 @@ class UploadFileInConflictUseCase(
             .addTag(uploadIdInStorageManager.toString())
             .build()
 
-        workManager.enqueue(uploadFileFromContentUriWorker)
-        Timber.i("Plain upload of $localPath has been enqueued.")
+        // Use unique work name based on upload ID to prevent concurrent uploads of same file
+        val uniqueWorkName = "upload_conflict_${uploadIdInStorageManager}"
+        workManager.enqueueUniqueWork(
+            uniqueWorkName,
+            ExistingWorkPolicy.KEEP, // Keep existing work to prevent duplicate uploads
+            uploadFileFromContentUriWorker
+        )
+        Timber.i("Plain upload of $localPath has been enqueued with unique work name: $uniqueWorkName")
 
         return uploadFileFromContentUriWorker.id
     }

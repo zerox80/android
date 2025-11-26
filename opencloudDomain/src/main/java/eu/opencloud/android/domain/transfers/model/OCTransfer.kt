@@ -42,6 +42,14 @@ data class OCTransfer(
     val transferId: String? = null,
     val spaceId: String? = null,
     val sourcePath: String? = null,
+    // TUS protocol state
+    val tusUploadUrl: String? = null,
+    val tusUploadLength: Long? = null,
+    val tusUploadMetadata: String? = null,
+    val tusUploadChecksum: String? = null,
+    val tusResumableVersion: String? = null,
+    val tusUploadExpires: Long? = null,
+    val tusUploadConcat: String? = null,
 ) : Parcelable {
     init {
         if (!remotePath.startsWith(File.separator)) throw IllegalArgumentException("Remote path must be an absolute path in the local file system")

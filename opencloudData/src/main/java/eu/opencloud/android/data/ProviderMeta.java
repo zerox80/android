@@ -31,7 +31,7 @@ public class ProviderMeta {
 
     public static final String DB_NAME = "filelist";
     public static final String NEW_DB_NAME = "opencloud_database";
-    public static final int DB_VERSION = 47;
+        public static final int DB_VERSION = 48;
 
     private ProviderMeta() {
     }
@@ -70,11 +70,16 @@ public class ProviderMeta {
         public static final String CAPABILITIES_APP_PROVIDERS_PREFIX = "app_providers_";
         public static final String CAPABILITIES_CORE_POLLINTERVAL = "core_pollinterval";
         public static final String CAPABILITIES_DAV_CHUNKING_VERSION = "dav_chunking_version";
-        public static final String CAPABILITIES_FILES_APP_PROVIDERS = "files_apps_providers";
         public static final String CAPABILITIES_FILES_BIGFILECHUNKING = "files_bigfilechunking";
         public static final String CAPABILITIES_FILES_PRIVATE_LINKS = "files_private_links";
         public static final String CAPABILITIES_FILES_UNDELETE = "files_undelete";
         public static final String CAPABILITIES_FILES_VERSIONING = "files_versioning";
+        public static final String CAPABILITIES_TUS_SUPPORT_PREFIX = "tus_support_";
+        public static final String CAPABILITIES_TUS_SUPPORT_VERSION = CAPABILITIES_TUS_SUPPORT_PREFIX + "version";
+        public static final String CAPABILITIES_TUS_SUPPORT_RESUMABLE = CAPABILITIES_TUS_SUPPORT_PREFIX + "resumable";
+        public static final String CAPABILITIES_TUS_SUPPORT_EXTENSION = CAPABILITIES_TUS_SUPPORT_PREFIX + "extension";
+        public static final String CAPABILITIES_TUS_SUPPORT_MAX_CHUNK_SIZE = CAPABILITIES_TUS_SUPPORT_PREFIX + "maxChunkSize";
+        public static final String CAPABILITIES_TUS_SUPPORT_HTTP_METHOD_OVERRIDE = CAPABILITIES_TUS_SUPPORT_PREFIX + "httpMethodOverride";
         public static final String CAPABILITIES_SHARING_API_ENABLED = "sharing_api_enabled";
         public static final String CAPABILITIES_SHARING_FEDERATION_INCOMING = "sharing_federation_incoming";
         public static final String CAPABILITIES_SHARING_FEDERATION_OUTGOING = "sharing_federation_outgoing";

@@ -34,10 +34,8 @@ import eu.opencloud.android.R
 import eu.opencloud.android.data.executeRemoteOperation
 import eu.opencloud.android.data.providers.LocalStorageProvider
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
-import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.domain.exceptions.LocalFileNotFoundException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
-import eu.opencloud.android.domain.files.model.OCFile
 import eu.opencloud.android.domain.files.usecases.GetWebDavUrlForSpaceUseCase
 import eu.opencloud.android.domain.transfers.TransferRepository
 import eu.opencloud.android.domain.transfers.model.OCTransfer
@@ -45,6 +43,7 @@ import eu.opencloud.android.domain.transfers.model.TransferResult
 import eu.opencloud.android.domain.transfers.model.TransferStatus
 import eu.opencloud.android.extensions.isContentUri
 import eu.opencloud.android.extensions.parseError
+import eu.opencloud.android.domain.capabilities.usecases.GetStoredCapabilitiesUseCase
 import eu.opencloud.android.lib.common.OpenCloudAccount
 import eu.opencloud.android.lib.common.OpenCloudClient
 import eu.opencloud.android.lib.common.SingleSessionManager
@@ -52,16 +51,11 @@ import eu.opencloud.android.lib.common.network.OnDatatransferProgressListener
 import eu.opencloud.android.lib.common.operations.RemoteOperationResult.ResultCode
 import eu.opencloud.android.lib.resources.files.CheckPathExistenceRemoteOperation
 import eu.opencloud.android.lib.resources.files.CreateRemoteFolderOperation
-import eu.opencloud.android.lib.resources.files.FileUtils
-import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
-import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation
-import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSystemOperation.Companion.CHUNK_SIZE
-import eu.opencloud.android.lib.resources.files.services.implementation.OCChunkService
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
-import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
-import eu.opencloud.android.utils.SecurityUtils
 import eu.opencloud.android.utils.UPLOAD_NOTIFICATION_CHANNEL_ID
+import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
+import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -70,6 +64,9 @@ import org.koin.core.component.inject
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+
+import kotlin.coroutines.cancellation.CancellationException
 
 class UploadFileFromContentUriWorker(
     private val appContext: Context,
@@ -81,7 +78,7 @@ class UploadFileFromContentUriWorker(
 
     private lateinit var account: Account
     private lateinit var contentUri: Uri
-    private lateinit var lastModified: String
+    private var lastModified: String = ""
     private lateinit var behavior: UploadBehavior
     private lateinit var uploadPath: String
     private lateinit var cachePath: String
@@ -92,15 +89,38 @@ class UploadFileFromContentUriWorker(
     private var spaceWebDavUrl: String? = null
 
     private lateinit var uploadFileOperation: UploadFileFromFileSystemOperation
+    private val tusUploadHelper by lazy { TusUploadHelper(transferRepository) }
 
     private var lastPercent = 0
 
     private val transferRepository: TransferRepository by inject()
     private val getWebdavUrlForSpaceUseCase: GetWebDavUrlForSpaceUseCase by inject()
+    private val getStoredCapabilitiesUseCase: GetStoredCapabilitiesUseCase by inject()
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = try {
+        prepareFile()
+        val clientForThisUpload = getClientForThisUpload()
+        checkParentFolderExistence(clientForThisUpload)
+        checkNameCollisionAndGetAnAvailableOneInCase(clientForThisUpload)
+        uploadDocument(clientForThisUpload)
+        updateUploadsDatabaseWithResult(null)
+        Result.success()
+    }catch (throwable: Throwable) {
+        Timber.e(throwable)
 
-        if (!areParametersValid()) return Result.failure()
+        if (shouldRetry(throwable)) {
+            Timber.i("Retrying upload %d after transient failure", uploadIdInStorageManager)
+            Result.retry()
+        }else {
+            showNotification(throwable)
+            updateUploadsDatabaseWithResult(throwable)
+            Result.failure()
+        }
+    }
+
+
+    private fun prepareFile() {
+        if (!areParametersValid()) return
 
         transferRepository.updateTransferStatusToInProgressById(uploadIdInStorageManager)
 
@@ -110,23 +130,10 @@ class UploadFileFromContentUriWorker(
         val localStorageProvider: LocalStorageProvider by inject()
         cachePath = localStorageProvider.getTemporalPath(account.name, ocTransfer.spaceId) + uploadPath
 
-        return try {
-            if (ocTransfer.isContentUri(appContext)) {
-                checkDocumentFileExists()
-                checkPermissionsToReadDocumentAreGranted()
-                copyFileToLocalStorage()
-            }
-            val clientForThisUpload = getClientForThisUpload()
-            checkParentFolderExistence(clientForThisUpload)
-            checkNameCollisionAndGetAnAvailableOneInCase(clientForThisUpload)
-            uploadDocument(clientForThisUpload)
-            updateUploadsDatabaseWithResult(null)
-            Result.success()
-        } catch (throwable: Throwable) {
-            Timber.e(throwable)
-            showNotification(throwable)
-            updateUploadsDatabaseWithResult(throwable)
-            Result.failure()
+        if (ocTransfer.isContentUri(appContext)) {
+            checkDocumentFileExists()
+            checkPermissionsToReadDocumentAreGranted()
+            copyFileToLocalStorage()
         }
     }
 
@@ -142,7 +149,7 @@ class UploadFileFromContentUriWorker(
         contentUri = paramContentUri?.toUri() ?: return false
         uploadPath = paramUploadPath ?: return false
         behavior = paramBehavior?.let { UploadBehavior.fromString(it) } ?: return false
-        lastModified = paramLastModified ?: return false
+        lastModified = paramLastModified.orEmpty()
         uploadIdInStorageManager = paramUploadId
         ocTransfer = retrieveUploadInfoFromDatabase() ?: return false
 
@@ -154,7 +161,7 @@ class UploadFileFromContentUriWorker(
             if (it != null) {
                 Timber.d("Upload with id ($uploadIdInStorageManager) has been found in database.")
                 Timber.d("Upload info: $it")
-            } else {
+            }else {
                 Timber.w("Upload with id ($uploadIdInStorageManager) has not been found in database.")
                 Timber.w("$uploadPath won't be uploaded")
             }
@@ -177,6 +184,7 @@ class UploadFileFromContentUriWorker(
     }
 
     private fun copyFileToLocalStorage() {
+        val documentFile = DocumentFile.fromSingleUri(appContext, contentUri)
         val cacheFile = File(cachePath)
         val cacheDir = cacheFile.parentFile
         if (cacheDir != null && !cacheDir.exists()) {
@@ -194,6 +202,20 @@ class UploadFileFromContentUriWorker(
 
         transferRepository.updateTransferSourcePath(uploadIdInStorageManager, contentUri.toString())
         transferRepository.updateTransferLocalPath(uploadIdInStorageManager, cachePath)
+
+        ensureValidLastModified(documentFile, cacheFile)
+    }
+
+    private fun ensureValidLastModified(documentFile: DocumentFile?, cachedFile: File) {
+        val current = lastModified.toLongOrNull()
+        if (current != null && current > 0) {
+            return
+        }
+
+        val documentMillis = documentFile?.lastModified()?.takeIf { it > 0 }
+        val fileMillis = cachedFile.lastModified().takeIf { it > 0 }
+        val fallbackMillis = documentMillis ?: fileMillis ?: System.currentTimeMillis()
+        lastModified = (fallbackMillis / 1000L).toString()
     }
 
     private fun getClientForThisUpload(): OpenCloudClient =
@@ -242,21 +264,72 @@ class UploadFileFromContentUriWorker(
         val cacheFile = File(cachePath)
         mimeType = cacheFile.extension
         fileSize = cacheFile.length()
+        ensureValidLastModified(null, cacheFile)
 
-        val getStoredCapabilitiesUseCase: GetStoredCapabilitiesUseCase by inject()
         val capabilitiesForAccount = getStoredCapabilitiesUseCase(
             GetStoredCapabilitiesUseCase.Params(
                 accountName = account.name
             )
         )
-        val isChunkingAllowed = capabilitiesForAccount != null && capabilitiesForAccount.isChunkingAllowed()
-        Timber.d("Chunking is allowed: %s, and file size is greater than the minimum chunk size: %s", isChunkingAllowed, fileSize > CHUNK_SIZE)
+        val tusSupport = capabilitiesForAccount?.filesTusSupport
+        val supportsTus = tusSupport != null
 
-        if (isChunkingAllowed && fileSize > CHUNK_SIZE) {
-            uploadChunkedFile(client)
-        } else {
-            uploadPlainFile(client)
+        val hasPendingTusSession = !ocTransfer.tusUploadUrl.isNullOrBlank()
+        val shouldTryTus = hasPendingTusSession || (supportsTus && fileSize >= TusUploadHelper.DEFAULT_CHUNK_SIZE)
+
+        var attemptedTus = false
+        if (shouldTryTus) {
+            attemptedTus = true
+            Timber.d(
+                "Attempting TUS upload (size=%d, threshold=%d, resume=%s)",
+                fileSize,
+                TusUploadHelper.DEFAULT_CHUNK_SIZE,
+                hasPendingTusSession
+            )
+            val tusSucceeded = try {
+                tusUploadHelper.upload(
+                    client = client,
+                    transfer = ocTransfer,
+                    uploadId = uploadIdInStorageManager,
+                    localPath = cachePath,
+                    remotePath = uploadPath,
+                    fileSize = fileSize,
+                    mimeType = mimeType,
+                    lastModified = null,
+                    tusSupport = tusSupport,
+                    progressListener = this,
+                    progressCallback = ::updateProgressFromTus,
+                    spaceWebDavUrl = spaceWebDavUrl,
+                )
+                true
+            }catch (throwable: Throwable) {
+                Timber.w(throwable, "TUS upload failed, falling back to single PUT")
+                if (shouldRetry(throwable)) {
+                    throw throwable
+                }
+                false
+            }
+
+            if (tusSucceeded) {
+                removeCacheFile()
+                Timber.d("TUS upload completed for %s", uploadPath)
+                return
+            }
+        }else {
+            Timber.d(
+                "Skipping TUS: file too small or unsupported (size=%d, threshold=%d, supportsTus=%s)",
+                fileSize,
+                TusUploadHelper.DEFAULT_CHUNK_SIZE,
+                supportsTus
+            )
         }
+
+        if (attemptedTus) {
+            clearTusState()
+        }
+
+        Timber.d("Falling back to single PUT upload for %s", uploadPath)
+        uploadPlainFile(client)
         removeCacheFile()
     }
 
@@ -275,43 +348,42 @@ class UploadFileFromContentUriWorker(
         executeRemoteOperation { uploadFileOperation.execute(client) }
     }
 
-    private fun uploadChunkedFile(client: OpenCloudClient) {
-        val immutableHashForChunkedFile = SecurityUtils.stringToMD5Hash(uploadPath) + System.currentTimeMillis()
-        // Step 1: Create folder where the chunks will be uploaded.
-        val createChunksRemoteFolderOperation = CreateRemoteFolderOperation(
-            remotePath = immutableHashForChunkedFile,
-            createFullPath = false,
-            isChunksFolder = true
-        )
-        executeRemoteOperation { createChunksRemoteFolderOperation.execute(client) }
+    private fun updateProgressFromTus(offset: Long, totalSize: Long) {
+        if (totalSize <= 0) return
+        val percent: Int = (100.0 * offset.toDouble() / totalSize.toDouble()).toInt()
+        if (percent == lastPercent) return
 
-        // Step 2: Upload file by chunks
-        uploadFileOperation = ChunkedUploadFromFileSystemOperation(
-            transferId = immutableHashForChunkedFile,
-            localPath = cachePath,
-            remotePath = uploadPath,
-            mimeType = mimeType,
-            lastModifiedTimestamp = lastModified,
-            requiredEtag = null,
-        ).apply {
-            addDataTransferProgressListener(this@UploadFileFromContentUriWorker)
+        CoroutineScope(Dispatchers.IO).launch {
+            val progress = workDataOf(DownloadFileWorker.WORKER_KEY_PROGRESS to percent)
+            setProgress(progress)
         }
-
-        executeRemoteOperation { uploadFileOperation.execute(client) }
-
-        // Step 3: Move remote file to the final remote destination
-        val ocChunkService = OCChunkService(client)
-        ocChunkService.moveFile(
-            sourceRemotePath = "${immutableHashForChunkedFile}${OCFile.PATH_SEPARATOR}${FileUtils.FINAL_CHUNKS_FILE}",
-            targetRemotePath = uploadPath,
-            fileLastModificationTimestamp = lastModified,
-            fileLength = fileSize
-        )
+        lastPercent = percent
     }
 
     private fun removeCacheFile() {
         val cacheFile = File(cachePath)
         cacheFile.delete()
+    }
+
+    private fun clearTusState() {
+        transferRepository.updateTusState(
+            id = uploadIdInStorageManager,
+            tusUploadUrl = null,
+            tusUploadLength = null,
+            tusUploadMetadata = null,
+            tusUploadChecksum = null,
+            tusResumableVersion = null,
+            tusUploadExpires = null,
+            tusUploadConcat = null,
+        )
+    }
+
+    private fun shouldRetry(throwable: Throwable?): Boolean {
+        if (throwable == null) return false
+        if (throwable is UnauthorizedException || throwable is LocalFileNotFoundException) return false
+        if (throwable is CancellationException) return true
+        if (throwable is IOException) return true
+        return shouldRetry(throwable.cause)
     }
 
     private fun updateUploadsDatabaseWithResult(throwable: Throwable?) {
@@ -326,7 +398,7 @@ class UploadFileFromContentUriWorker(
     private fun getUploadStatusForThrowable(throwable: Throwable?): TransferStatus =
         if (throwable == null) {
             TransferStatus.TRANSFER_SUCCEEDED
-        } else {
+        }else {
             TransferStatus.TRANSFER_FAILED
         }
 
@@ -339,7 +411,7 @@ class UploadFileFromContentUriWorker(
 
         val pendingIntent = if (needsToUpdateCredentials) {
             NotificationUtils.composePendingIntentToRefreshCredentials(appContext, account)
-        } else {
+        }else {
             NotificationUtils.composePendingIntentToUploadList(appContext)
         }
 

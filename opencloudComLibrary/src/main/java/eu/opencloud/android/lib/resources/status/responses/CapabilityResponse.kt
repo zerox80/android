@@ -83,6 +83,7 @@ data class CapabilityResponse(
         filesPrivateLinks = capabilities?.fileCapabilities?.privateLinks?.let { CapabilityBooleanType.fromBooleanValue(it) }
             ?: CapabilityBooleanType.UNKNOWN,
         filesAppProviders = capabilities?.fileCapabilities?.appProviders?.map { it.toAppProviders() },
+        filesTusSupport = capabilities?.fileCapabilities?.tusSupport?.toTusSupport(),
         filesSharingFederationIncoming =
         CapabilityBooleanType.fromBooleanValue(capabilities?.fileSharingCapabilities?.fileSharingFederation?.incoming),
         filesSharingFederationOutgoing =
@@ -187,7 +188,9 @@ data class FileCapabilities(
     val versioning: Boolean?,
     val privateLinks: Boolean?,
     @Json(name = "app_providers")
-    val appProviders: List<AppProvider>?
+    val appProviders: List<AppProvider>?,
+    @Json(name = "tus_support")
+    val tusSupport: TusSupport?
 )
 
 @JsonClass(generateAdapter = true)
@@ -204,6 +207,25 @@ data class AppProvider(
     val newUrl: String?,
 ) {
     fun toAppProviders() = RemoteAppProviders(enabled, version, appsUrl, openUrl, openWebUrl, newUrl)
+}
+
+@JsonClass(generateAdapter = true)
+data class TusSupport(
+    val version: String?,
+    val resumable: String?,
+    val extension: String?,
+    @Json(name = "max_chunk_size")
+    val maxChunkSize: Int?,
+    @Json(name = "http_method_override")
+    val httpMethodOverride: String?
+) {
+    fun toTusSupport() = RemoteCapability.TusSupport(
+        version = version,
+        resumable = resumable,
+        extension = extension,
+        maxChunkSize = maxChunkSize,
+        httpMethodOverride = httpMethodOverride,
+    )
 }
 
 @JsonClass(generateAdapter = true)

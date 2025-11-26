@@ -29,6 +29,7 @@ import eu.opencloud.android.domain.transfers.TransferRepository
 import eu.opencloud.android.extensions.getWorkInfoByTags
 import eu.opencloud.android.workers.UploadFileFromFileSystemWorker
 import timber.log.Timber
+import java.io.File
 
 class RetryUploadFromSystemUseCase(
     private val workManager: WorkManager,
@@ -52,11 +53,18 @@ class RetryUploadFromSystemUseCase(
         if (workInfos.isEmpty() || workInfos.firstOrNull()?.state == WorkInfo.State.FAILED) {
             transferRepository.updateTransferStatusToEnqueuedById(params.uploadIdInStorageManager)
 
+            val lastModifiedInSeconds = File(uploadToRetry.localPath)
+                .takeIf { it.exists() && it.isFile }
+                ?.lastModified()
+                ?.takeIf { it > 0 }
+                ?.div(1000)
+                ?.toString()
+
             uploadFileFromSystemUseCase(
                 UploadFileFromSystemUseCase.Params(
                     accountName = uploadToRetry.accountName,
                     localPath = uploadToRetry.localPath,
-                    lastModifiedInSeconds = (uploadToRetry.transferEndTimestamp?.div(1000)).toString(),
+                    lastModifiedInSeconds = lastModifiedInSeconds,
                     behavior = uploadToRetry.localBehaviour.name,
                     uploadPath = uploadToRetry.remotePath,
                     sourcePath = uploadToRetry.sourcePath,
