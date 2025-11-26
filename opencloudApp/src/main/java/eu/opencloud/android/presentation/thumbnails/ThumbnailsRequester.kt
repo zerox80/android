@@ -28,7 +28,6 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
 import eu.opencloud.android.MainApp.Companion.appContext
-import eu.opencloud.android.R
 import eu.opencloud.android.data.ClientManager
 import java.util.concurrent.ConcurrentHashMap
 import eu.opencloud.android.domain.files.model.OCFile
@@ -49,7 +48,6 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import timber.log.Timber
 import java.util.Locale
-import kotlin.math.roundToInt
 
 object ThumbnailsRequester : KoinComponent {
     private val clientManager: ClientManager by inject()
@@ -89,25 +87,21 @@ object ThumbnailsRequester : KoinComponent {
         return "$baseUrl/index.php/avatar/${android.net.Uri.encode(username)}/384"
     }
 
-    fun getPreviewUriForFile(file: OCFile, account: Account, etag: String? = null): String {
-        return getPreviewUri(file.remotePath, etag ?: file.etag, account)
-    }
+    fun getPreviewUriForFile(file: OCFile, account: Account, etag: String? = null): String =
+        getPreviewUri(file.remotePath, etag ?: file.etag, account)
 
-    fun getPreviewUriForFile(fileWithSyncInfo: OCFileWithSyncInfo, account: Account): String {
-        return getPreviewUriForFile(fileWithSyncInfo.file, account)
-    }
+    fun getPreviewUriForFile(fileWithSyncInfo: OCFileWithSyncInfo, account: Account): String =
+        getPreviewUriForFile(fileWithSyncInfo.file, account)
 
-    fun getPreviewUriForSpaceSpecial(spaceSpecial: SpaceSpecial): String {
-        return String.format(Locale.US, SPACE_SPECIAL_PREVIEW_URI, spaceSpecial.webDavUrl, 1024, 1024, spaceSpecial.eTag)
-    }
+    fun getPreviewUriForSpaceSpecial(spaceSpecial: SpaceSpecial): String =
+        String.format(Locale.US, SPACE_SPECIAL_PREVIEW_URI, spaceSpecial.webDavUrl, 1024, 1024, spaceSpecial.eTag)
 
     private fun getPreviewUri(remotePath: String?, etag: String?, account: Account): String {
         val accountManager = AccountManager.get(appContext)
         val baseUrl = accountManager.getUserData(account, eu.opencloud.android.lib.common.accounts.AccountUtils.Constants.KEY_OC_BASE_URL)
-        
         val path = if (remotePath?.startsWith("/") == true) remotePath else "/$remotePath"
         val encodedPath = Uri.encode(path, "/")
-        
+
         return String.format(Locale.US, FILE_PREVIEW_URI, baseUrl, encodedPath, 1024, 1024, etag)
     }
 
