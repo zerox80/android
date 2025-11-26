@@ -23,11 +23,14 @@
 package eu.opencloud.android.workers
 
 import android.accounts.Account
+import android.app.Notification
 import android.content.Context
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import eu.opencloud.android.R
@@ -35,6 +38,12 @@ import eu.opencloud.android.data.executeRemoteOperation
 import eu.opencloud.android.data.providers.LocalStorageProvider
 import eu.opencloud.android.domain.automaticuploads.model.UploadBehavior
 import eu.opencloud.android.domain.exceptions.LocalFileNotFoundException
+import eu.opencloud.android.domain.exceptions.NetworkErrorException
+import eu.opencloud.android.domain.exceptions.NoConnectionWithServerException
+import eu.opencloud.android.domain.exceptions.NoNetworkConnectionException
+import eu.opencloud.android.domain.exceptions.ServerConnectionTimeoutException
+import eu.opencloud.android.domain.exceptions.ServerNotReachableException
+import eu.opencloud.android.domain.exceptions.ServerResponseTimeoutException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
 import eu.opencloud.android.domain.files.usecases.GetWebDavUrlForSpaceUseCase
 import eu.opencloud.android.domain.transfers.TransferRepository
@@ -51,11 +60,11 @@ import eu.opencloud.android.lib.common.network.OnDatatransferProgressListener
 import eu.opencloud.android.lib.common.operations.RemoteOperationResult.ResultCode
 import eu.opencloud.android.lib.resources.files.CheckPathExistenceRemoteOperation
 import eu.opencloud.android.lib.resources.files.CreateRemoteFolderOperation
+import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
 import eu.opencloud.android.presentation.authentication.AccountUtils
 import eu.opencloud.android.utils.NotificationUtils
 import eu.opencloud.android.utils.UPLOAD_NOTIFICATION_CHANNEL_ID
 import eu.opencloud.android.utils.RemoteFileUtils.getAvailableRemotePath
-import eu.opencloud.android.lib.resources.files.UploadFileFromFileSystemOperation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,7 +74,6 @@ import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-
 import kotlin.coroutines.cancellation.CancellationException
 
 class UploadFileFromContentUriWorker(
@@ -91,7 +99,11 @@ class UploadFileFromContentUriWorker(
     private lateinit var uploadFileOperation: UploadFileFromFileSystemOperation
     private val tusUploadHelper by lazy { TusUploadHelper(transferRepository) }
 
-    private var lastPercent = 0
+    private var lastPercent = -1
+
+    private var foregroundInitialized = false
+    private var currentForegroundProgress = -1
+    private val foregroundScope = CoroutineScope(Dispatchers.IO)
 
     private val transferRepository: TransferRepository by inject()
     private val getWebdavUrlForSpaceUseCase: GetWebDavUrlForSpaceUseCase by inject()
@@ -99,6 +111,7 @@ class UploadFileFromContentUriWorker(
 
     override suspend fun doWork(): Result = try {
         prepareFile()
+        startForeground()
         val clientForThisUpload = getClientForThisUpload()
         checkParentFolderExistence(clientForThisUpload)
         checkNameCollisionAndGetAnAvailableOneInCase(clientForThisUpload)
@@ -117,7 +130,6 @@ class UploadFileFromContentUriWorker(
             Result.failure()
         }
     }
-
 
     private fun prepareFile() {
         if (!areParametersValid()) return
@@ -324,12 +336,9 @@ class UploadFileFromContentUriWorker(
             )
         }
 
-        if (attemptedTus) {
-            clearTusState()
-        }
-
         Timber.d("Falling back to single PUT upload for %s", uploadPath)
         uploadPlainFile(client)
+        clearTusState()
         removeCacheFile()
     }
 
@@ -345,7 +354,10 @@ class UploadFileFromContentUriWorker(
             addDataTransferProgressListener(this@UploadFileFromContentUriWorker)
         }
 
-        executeRemoteOperation { uploadFileOperation.execute(client) }
+        val result = executeRemoteOperation { uploadFileOperation.execute(client) }
+        if (result == Unit) {
+            clearTusState()
+        }
     }
 
     private fun updateProgressFromTus(offset: Long, totalSize: Long) {
@@ -357,6 +369,7 @@ class UploadFileFromContentUriWorker(
             val progress = workDataOf(DownloadFileWorker.WORKER_KEY_PROGRESS to percent)
             setProgress(progress)
         }
+        scheduleForegroundUpdate(percent)
         lastPercent = percent
     }
 
@@ -383,6 +396,13 @@ class UploadFileFromContentUriWorker(
         if (throwable is UnauthorizedException || throwable is LocalFileNotFoundException) return false
         if (throwable is CancellationException) return true
         if (throwable is IOException) return true
+        // Retry on network-related exceptions
+        if (throwable is NoConnectionWithServerException) return true
+        if (throwable is NoNetworkConnectionException) return true
+        if (throwable is ServerNotReachableException) return true
+        if (throwable is ServerConnectionTimeoutException) return true
+        if (throwable is ServerResponseTimeoutException) return true
+        if (throwable is NetworkErrorException) return true
         return shouldRetry(throwable.cause)
     }
 
@@ -442,7 +462,76 @@ class UploadFileFromContentUriWorker(
             setProgress(progress)
         }
 
+        scheduleForegroundUpdate(percent)
         lastPercent = percent
+    }
+
+    private suspend fun startForeground() {
+        if (foregroundInitialized) return
+        foregroundInitialized = true
+        currentForegroundProgress = Int.MIN_VALUE
+        try {
+            setForeground(createForegroundInfo(-1))
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to set foreground for upload worker")
+        }
+        currentForegroundProgress = -1
+    }
+
+    private fun scheduleForegroundUpdate(progress: Int) {
+        if (!foregroundInitialized) return
+        if (progress == currentForegroundProgress) return
+        currentForegroundProgress = progress
+        foregroundScope.launch {
+            try {
+                setForeground(createForegroundInfo(progress))
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to update foreground notification")
+            }
+        }
+    }
+
+    private fun createForegroundInfo(progress: Int): ForegroundInfo =
+        ForegroundInfo(
+            computeNotificationId(),
+            buildForegroundNotification(progress),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        )
+
+    private fun buildForegroundNotification(progress: Int): Notification {
+        val fileName = File(uploadPath).name
+        val builder = NotificationUtils
+            .newNotificationBuilder(appContext, UPLOAD_NOTIFICATION_CHANNEL_ID)
+            .setContentTitle(appContext.getString(R.string.uploader_upload_in_progress_ticker))
+            .setContentIntent(NotificationUtils.composePendingIntentToUploadList(appContext))
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setSubText(fileName)
+
+        if (progress in 0..100) {
+            builder.setContentText(
+                appContext.getString(
+                    R.string.uploader_upload_in_progress_content,
+                    progress,
+                    fileName
+                )
+            )
+            builder.setProgress(100, progress, false)
+        } else {
+            builder.setContentText(appContext.getString(R.string.uploader_upload_in_progress_ticker))
+            builder.setProgress(0, 0, true)
+        }
+
+        return builder.build()
+    }
+
+    private fun computeNotificationId(): Int {
+        val id = uploadIdInStorageManager
+        return if (id in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+            id.toInt()
+        } else {
+            id.hashCode()
+        }
     }
 
     companion object {
