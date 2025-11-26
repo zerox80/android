@@ -606,7 +606,7 @@ class MainFileListFragment : Fragment(),
                     dialog.dismiss()
                 }
 
-                val thumbnailBottomSheet = fileOptionsBottomSheetSingleFile.findViewById<ImageView>(R.id.thumbnail_bottom_sheet)
+
 
                 val fileSizeBottomSheet = fileOptionsBottomSheetSingleFile.findViewById<TextView>(R.id.file_size_bottom_sheet)
                 fileSizeBottomSheet.text = DisplayUtils.bytesToHumanReadable(file.length, requireContext(), true)
