@@ -117,8 +117,7 @@ class MainApp : Application() {
         SingleSessionManager.setUserAgent(userAgent)
 
         // initialise thumbnails cache on background thread
-        // initialise thumbnails cache on background thread
-        
+        ThumbnailsCacheManager.InitDiskCacheTask().execute()
 
 
         initDependencyInjection()
