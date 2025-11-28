@@ -180,6 +180,58 @@ class TusIntegrationTest {
     }
 
     @Test
+    fun creation_with_upload_returns_offset() {
+        val client = newClient()
+        val collectionPath = "/remote.php/dav/uploads/$userId"
+        val locationPath = "$collectionPath/UPLD-WITH-DATA"
+        val localFile = File.createTempFile("tus", ".bin").apply {
+            writeBytes(ByteArray(100) { it.toByte() })
+        }
+        val firstChunkSize = 50L
+
+        // POST Create with Upload -> 201 + Location + Upload-Offset
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(201)
+                .addHeader("Tus-Resumable", "1.0.0")
+                .addHeader("Location", locationPath)
+                .addHeader("Upload-Offset", firstChunkSize.toString())
+        )
+
+        val create = CreateTusUploadRemoteOperation(
+            file = localFile,
+            remotePath = "/test-with-data.bin",
+            mimetype = "application/octet-stream",
+            metadata = mapOf("filename" to "test-with-data.bin"),
+            useCreationWithUpload = true,
+            firstChunkSize = firstChunkSize,
+            tusUrl = null,
+            collectionUrlOverride = server.url(collectionPath).toString(),
+            base64Encoder = object : Base64Encoder {
+                override fun encode(bytes: ByteArray): String =
+                    Base64.getEncoder().encodeToString(bytes)
+            }
+        )
+
+        val createResult = create.execute(client)
+        assertTrue("Create operation failed", createResult.isSuccess)
+        
+        val creationResult = createResult.data
+        assertNotNull(creationResult)
+        assertEquals(firstChunkSize, creationResult!!.uploadOffset)
+        assertTrue(creationResult.uploadUrl.endsWith(locationPath))
+
+        // Verify POST request
+        val postReq = server.takeRequest()
+        assertEquals("POST", postReq.method)
+        assertEquals("Bearer $token", postReq.getHeader("Authorization"))
+        assertEquals("1.0.0", postReq.getHeader("Tus-Resumable"))
+        // creation-with-upload sends Content-Type and Content-Length for the chunk
+        assertEquals("application/offset+octet-stream", postReq.getHeader("Content-Type"))
+        assertEquals(firstChunkSize.toString(), postReq.getHeader("Content-Length"))
+    }
+
+    @Test
     fun patch_wrong_offset_returns_conflict() {
         val client = newClient()
         val locationPath = "/remote.php/dav/uploads/$userId/UPLD-err"
