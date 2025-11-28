@@ -215,7 +215,7 @@ class TusIntegrationTest {
 
         val createResult = create.execute(client)
         assertTrue("Create operation failed", createResult.isSuccess)
-        
+
         val creationResult = createResult.data
         assertNotNull(creationResult)
         assertEquals(firstChunkSize, creationResult!!.uploadOffset)
