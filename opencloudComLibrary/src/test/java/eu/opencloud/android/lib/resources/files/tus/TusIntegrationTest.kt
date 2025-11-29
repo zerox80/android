@@ -10,8 +10,10 @@ import eu.opencloud.android.lib.common.accounts.AccountUtils
 import eu.opencloud.android.lib.common.authentication.OpenCloudCredentialsFactory
 import eu.opencloud.android.lib.common.operations.RemoteOperationResult
 import eu.opencloud.android.lib.resources.files.tus.CreateTusUploadRemoteOperation.Base64Encoder
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -177,6 +179,72 @@ class TusIntegrationTest {
         assertEquals("DELETE", delReq.method)
         assertEquals("Bearer $token", delReq.getHeader("Authorization"))
         assertEquals("1.0.0", delReq.getHeader("Tus-Resumable"))
+    }
+
+    @Test
+    fun creation_with_upload_returns_offset() {
+        val client = newClient()
+        val collectionPath = "/remote.php/dav/uploads/$userId"
+        val locationPath = "$collectionPath/UPLD-WITH-DATA"
+        val localFile = File.createTempFile("tus", ".bin").apply {
+            writeBytes(ByteArray(100) { it.toByte() })
+        }
+        val firstChunkSize = 50L
+
+        // POST Create with Upload -> 201 + Location + Upload-Offset
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.path == collectionPath) {
+                    // Verify body content
+                    val bodySize = request.bodySize
+                    assertEquals(firstChunkSize, bodySize)
+
+                    // Verify body bytes (first 50 bytes of the file)
+                    val expectedBytes = ByteArray(firstChunkSize.toInt()) { it.toByte() }
+                    val actualBytes = request.body.readByteArray()
+                    assertArrayEquals(expectedBytes, actualBytes)
+
+                    return MockResponse()
+                        .setResponseCode(201)
+                        .addHeader("Tus-Resumable", "1.0.0")
+                        .addHeader("Location", locationPath)
+                        .addHeader("Upload-Offset", bodySize.toString())
+                }
+                return MockResponse().setResponseCode(404)
+            }
+        }
+
+        val create = CreateTusUploadRemoteOperation(
+            file = localFile,
+            remotePath = "/test-with-data.bin",
+            mimetype = "application/octet-stream",
+            metadata = mapOf("filename" to "test-with-data.bin"),
+            useCreationWithUpload = true,
+            firstChunkSize = firstChunkSize,
+            tusUrl = null,
+            collectionUrlOverride = server.url(collectionPath).toString(),
+            base64Encoder = object : Base64Encoder {
+                override fun encode(bytes: ByteArray): String =
+                    Base64.getEncoder().encodeToString(bytes)
+            }
+        )
+
+        val createResult = create.execute(client)
+        assertTrue("Create operation failed", createResult.isSuccess)
+
+        val creationResult = createResult.data
+        assertNotNull(creationResult)
+        assertEquals(firstChunkSize, creationResult!!.uploadOffset)
+        assertTrue(creationResult.uploadUrl.endsWith(locationPath))
+
+        // Verify POST request
+        val postReq = server.takeRequest()
+        assertEquals("POST", postReq.method)
+        assertEquals("Bearer $token", postReq.getHeader("Authorization"))
+        assertEquals("1.0.0", postReq.getHeader("Tus-Resumable"))
+        // creation-with-upload sends Content-Type and Content-Length for the chunk
+        assertEquals("application/offset+octet-stream", postReq.getHeader("Content-Type"))
+        assertEquals(firstChunkSize.toString(), postReq.getHeader("Content-Length"))
     }
 
     @Test
