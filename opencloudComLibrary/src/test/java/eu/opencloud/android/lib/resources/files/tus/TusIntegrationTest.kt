@@ -10,8 +10,10 @@ import eu.opencloud.android.lib.common.accounts.AccountUtils
 import eu.opencloud.android.lib.common.authentication.OpenCloudCredentialsFactory
 import eu.opencloud.android.lib.common.operations.RemoteOperationResult
 import eu.opencloud.android.lib.resources.files.tus.CreateTusUploadRemoteOperation.Base64Encoder
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -190,13 +192,27 @@ class TusIntegrationTest {
         val firstChunkSize = 50L
 
         // POST Create with Upload -> 201 + Location + Upload-Offset
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(201)
-                .addHeader("Tus-Resumable", "1.0.0")
-                .addHeader("Location", locationPath)
-                .addHeader("Upload-Offset", firstChunkSize.toString())
-        )
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.path == collectionPath) {
+                    // Verify body content
+                    val bodySize = request.bodySize
+                    assertEquals(firstChunkSize, bodySize)
+
+                    // Verify body bytes (first 50 bytes of the file)
+                    val expectedBytes = ByteArray(firstChunkSize.toInt()) { it.toByte() }
+                    val actualBytes = request.body.readByteArray()
+                    assertArrayEquals(expectedBytes, actualBytes)
+
+                    return MockResponse()
+                        .setResponseCode(201)
+                        .addHeader("Tus-Resumable", "1.0.0")
+                        .addHeader("Location", locationPath)
+                        .addHeader("Upload-Offset", bodySize.toString())
+                }
+                return MockResponse().setResponseCode(404)
+            }
+        }
 
         val create = CreateTusUploadRemoteOperation(
             file = localFile,
