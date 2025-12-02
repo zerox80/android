@@ -124,7 +124,6 @@ abstract class ToolbarActivity : BaseActivity() {
                     AvatarUtils().loadAvatarForAccount(
                         avatarView,
                         account,
-                        true,
                         baseContext.resources.getDimension(R.dimen.toolbar_avatar_radius),
                         imageLoader
                     )
