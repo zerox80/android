@@ -113,7 +113,6 @@ class ManageAccountsAdapter(
                             avatarUtils.loadAvatarForAccount(
                                 holder.binding.icon,
                                 account,
-                                true,
                                 accountAvatarRadiusDimension,
                                 loader
                             )

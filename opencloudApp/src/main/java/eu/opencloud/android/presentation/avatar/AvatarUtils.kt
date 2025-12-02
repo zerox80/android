@@ -49,7 +49,6 @@ class AvatarUtils : KoinComponent {
     fun loadAvatarForAccount(
         imageView: ImageView,
         account: Account,
-        @Suppress("UnusedParameter") fetchIfNotCached: Boolean = false,
         @Suppress("UnusedParameter") displayRadius: Float,
         imageLoader: coil.ImageLoader? = null
     ) {
@@ -65,7 +64,6 @@ class AvatarUtils : KoinComponent {
     fun loadAvatarForAccount(
         menuItem: MenuItem,
         account: Account,
-        @Suppress("UnusedParameter") fetchIfNotCached: Boolean = false,
         @Suppress("UnusedParameter") displayRadius: Float
     ) {
         val uri = ThumbnailsRequester.getAvatarUri(account)
