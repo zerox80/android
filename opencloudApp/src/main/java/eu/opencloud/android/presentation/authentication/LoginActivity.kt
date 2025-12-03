@@ -147,11 +147,9 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         userAccount = intent.getParcelableExtra(EXTRA_ACCOUNT)
 
         // Get values from savedInstanceState
-        if (savedInstanceState == null) {
-            if (authTokenType == null && userAccount != null) {
-                authenticationViewModel.supportsOAuth2((userAccount as Account).name)
-            }
-        } else {
+        if (savedInstanceState == null && authTokenType == null && userAccount != null) {
+            authenticationViewModel.supportsOAuth2((userAccount as Account).name)
+        } else if (savedInstanceState != null) {
             authTokenType = savedInstanceState.getString(KEY_AUTH_TOKEN_TYPE)
             savedInstanceState.getString(KEY_SERVER_BASE_URL)?.let { serverBaseUrl = it }
             oidcSupported = savedInstanceState.getBoolean(KEY_OIDC_SUPPORTED)
