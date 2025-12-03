@@ -11,6 +11,7 @@ import eu.opencloud.android.lib.resources.files.chunks.ChunkedUploadFromFileSyst
 import eu.opencloud.android.lib.resources.files.tus.CreateTusUploadRemoteOperation
 import eu.opencloud.android.lib.resources.files.tus.GetTusUploadOffsetRemoteOperation
 import eu.opencloud.android.lib.resources.files.tus.PatchTusUploadChunkRemoteOperation
+import eu.opencloud.android.domain.exceptions.FileNotFoundException
 import timber.log.Timber
 import java.io.File
 import kotlin.math.min
@@ -23,10 +24,12 @@ class TusUploadHelper(
 ) {
     @Volatile
     private var cancelled = false
+    private var activePatchOperation: PatchTusUploadChunkRemoteOperation? = null
 
     fun cancel() {
         cancelled = true
         Timber.d("TUS: upload cancellation requested")
+        activePatchOperation?.cancel()
     }
 
     /**
@@ -48,6 +51,8 @@ class TusUploadHelper(
         progressCallback: ((Long, Long) -> Unit)? = null,
         spaceWebDavUrl: String? = null,
     ) {
+        // Reset cancelled state for new upload
+        cancelled = false
         Timber.d("TUS: starting upload for %s size=%d", remotePath, fileSize)
 
         var tusUrl = transfer.tusUploadUrl
@@ -138,7 +143,8 @@ class TusUploadHelper(
             tusSupport = tusSupport,
             progressListener = progressListener,
             progressCallback = progressCallback,
-            initialOffset = offset
+            initialOffset = offset,
+            uploadId = uploadId,
         )
 
         // Verify upload is actually complete
@@ -167,7 +173,8 @@ class TusUploadHelper(
         tusSupport: OCCapability.TusSupport?,
         progressListener: OnDatatransferProgressListener?,
         progressCallback: ((Long, Long) -> Unit)?,
-        initialOffset: Long
+        initialOffset: Long,
+        uploadId: Long,
     ): Long {
         var offset = initialOffset
         val serverMaxChunk = tusSupport?.maxChunkSize?.takeIf { it > 0 }?.toLong()
@@ -193,8 +200,10 @@ class TusUploadHelper(
             ).apply {
                 progressListener?.let { addDataTransferProgressListener(it) }
             }
+            activePatchOperation = patchOperation
 
             val patchResult = patchOperation.execute(client)
+            activePatchOperation = null
             if (!patchResult.isSuccess || patchResult.data == null || patchResult.data!! < offset) {
                 consecutiveFailures++
                 Timber.w(
@@ -211,6 +220,7 @@ class TusUploadHelper(
                     currentOffset = offset,
                     totalSize = fileSize,
                     progressCallback = progressCallback,
+                    uploadId = uploadId,
                 )
 
                 if (recoveredOffset != null && recoveredOffset > offset) {
@@ -297,6 +307,7 @@ class TusUploadHelper(
         currentOffset: Long,
         totalSize: Long,
         progressCallback: ((Long, Long) -> Unit)?,
+        uploadId: Long,
     ): Long? = try {
             val newOffset = executeRemoteOperation {
                 GetTusUploadOffsetRemoteOperation(tusUrl).execute(client)
@@ -321,6 +332,19 @@ class TusUploadHelper(
         } catch (e: java.io.IOException) {
             Timber.w(e, "TUS: recover offset failed")
             throw e
+        } catch (e: FileNotFoundException) {
+            Timber.w(e, "TUS: upload not found on server (404), clearing state to restart")
+            transferRepository.updateTusState(
+                id = uploadId,
+                tusUploadUrl = null,
+                tusUploadLength = null,
+                tusUploadMetadata = null,
+                tusUploadChecksum = null,
+                tusResumableVersion = null,
+                tusUploadExpires = null,
+                tusUploadConcat = null,
+            )
+            throw java.io.IOException("TUS: upload session lost (404), forcing restart", e)
         } catch (recoverError: Throwable) {
             Timber.w(recoverError, "TUS: recover offset failed")
             null

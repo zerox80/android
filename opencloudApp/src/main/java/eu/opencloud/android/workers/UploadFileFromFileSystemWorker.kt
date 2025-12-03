@@ -465,6 +465,7 @@ class UploadFileFromFileSystemWorker(
     ) {
         if (this.isStopped) {
             Timber.w("Cancelling upload operation. The worker is stopped by user or system")
+            tusUploadHelper.cancel()
             if (::uploadFileOperation.isInitialized) {
                 uploadFileOperation.cancel()
                 uploadFileOperation.removeDataTransferProgressListener(this)
