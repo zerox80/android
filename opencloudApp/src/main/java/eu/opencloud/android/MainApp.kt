@@ -99,6 +99,15 @@ class MainApp : Application() {
 
         appContext = applicationContext
 
+        // Ensure Logcat shows Timber logs in debug builds
+        if (BuildConfig.DEBUG) {
+            try {
+                Timber.plant(Timber.DebugTree())
+            } catch (_: Throwable) {
+                // ignore if already planted
+            }
+        }
+
         startLogsIfEnabled()
 
         DebugInjector.injectDebugTools(appContext)
@@ -106,6 +115,7 @@ class MainApp : Application() {
         createNotificationChannels()
 
         SingleSessionManager.setUserAgent(userAgent)
+
 
 
 
