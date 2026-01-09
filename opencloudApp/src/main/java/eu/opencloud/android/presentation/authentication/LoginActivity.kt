@@ -929,12 +929,9 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             outState.putString(KEY_SERVER_BASE_URL, serverBaseUrl)
         }
         outState.putBoolean(KEY_OIDC_SUPPORTED, oidcSupported)
-<<<<<<< HEAD
         outState.putString(KEY_CODE_VERIFIER, authenticationViewModel.codeVerifier)
         outState.putString(KEY_CODE_CHALLENGE, authenticationViewModel.codeChallenge)
         outState.putString(KEY_OIDC_STATE, authenticationViewModel.oidcState)
-=======
->>>>>>> f5e9fdde5 (Fix: Critical login state and authentication issues)
     }
 
     override fun finish() {
