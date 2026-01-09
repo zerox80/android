@@ -121,6 +121,7 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     private var pendingAuthorizationIntent: Intent? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
         if (intent.data != null && (intent.data?.getQueryParameter("code") != null || intent.data?.getQueryParameter("error") != null)) {
             if (!isTaskRoot) {
                 val newIntent = Intent(this, LoginActivity::class.java)
