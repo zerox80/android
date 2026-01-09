@@ -82,7 +82,10 @@ object ThumbnailsRequester : KoinComponent {
 
     fun getAvatarUri(account: Account): String {
         val accountManager = AccountManager.get(appContext)
-        val baseUrl = accountManager.getUserData(account, eu.opencloud.android.lib.common.accounts.AccountUtils.Constants.KEY_OC_BASE_URL)
+        val baseUrl =
+            accountManager.getUserData(account, eu.opencloud.android.lib.common.accounts.AccountUtils.Constants.KEY_OC_BASE_URL)
+                ?.trimEnd('/')
+                .orEmpty()
         val username = AccountUtils.getUsernameOfAccount(account.name)
         return "$baseUrl/index.php/avatar/${android.net.Uri.encode(username)}/384"
     }
@@ -122,7 +125,7 @@ object ThumbnailsRequester : KoinComponent {
 
             ImageLoader(appContext).newBuilder().okHttpClient(
                 okHttpClient = openCloudClient.okHttpClient.newBuilder()
-                    .addNetworkInterceptor(coilRequestHeaderInterceptor).build()
+                    .addInterceptor(coilRequestHeaderInterceptor).build()
             ).logger(DebugLogger())
                 .memoryCache {
                     getSharedMemoryCache()
@@ -148,9 +151,26 @@ object ThumbnailsRequester : KoinComponent {
                 OC_X_REQUEST_ID to RandomUtils.generateRandomUUID(),
             )
 
-            val request = chain.request().newBuilder()
-            requestHeaders.toHeaders().forEach { request.addHeader(it.first, it.second) }
-            val response = chain.proceed(request.build())
+            val requestBuilder = chain.request().newBuilder()
+            requestHeaders.toHeaders().forEach { requestBuilder.addHeader(it.first, it.second) }
+            val requestWithHeaders = requestBuilder.build()
+
+            var response = chain.proceed(requestWithHeaders)
+
+            val originalUrl = requestWithHeaders.url.toString()
+            if (
+                originalUrl.contains("/index.php/avatar/") &&
+                (!response.isSuccessful || !isProbablyAnImage(response))
+            ) {
+                response.close()
+
+                val baseUrl = originalUrl.substringBefore("/index.php/avatar/").trimEnd('/')
+                val graphUrl = "$baseUrl/graph/v1.0/me/photo/\$value"
+
+                val graphRequest = requestWithHeaders.newBuilder().url(graphUrl).build()
+                response = chain.proceed(graphRequest)
+            }
+
             var builder = response.newBuilder()
             var changed = false
 
@@ -161,7 +181,11 @@ object ThumbnailsRequester : KoinComponent {
                 changed = true
             }
 
-            if (chain.request().url.toString().contains("/avatar/") && response.header("Content-Type").isNullOrEmpty()) {
+            val finalRequestUrl = response.request.url.toString()
+            if (
+                (finalRequestUrl.contains("/avatar/") || finalRequestUrl.contains("/photo/\$value")) &&
+                response.header("Content-Type").isNullOrEmpty()
+            ) {
                 builder.addHeader("Content-Type", "image/png")
                 changed = true
             }
@@ -170,6 +194,11 @@ object ThumbnailsRequester : KoinComponent {
                 return builder.build().also { Timber.d("Header :" + it.headers) }
             }
             return response
+        }
+
+        private fun isProbablyAnImage(response: Response): Boolean {
+            val contentType = response.header("Content-Type")
+            return contentType.isNullOrEmpty() || contentType.startsWith("image")
         }
     }
 }
