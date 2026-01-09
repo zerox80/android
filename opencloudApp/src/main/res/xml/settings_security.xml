@@ -69,5 +69,4 @@
         app:key="prefer_local_on_conflict"
         app:summary="@string/prefs_prefer_local_on_conflict_summary"
         app:title="@string/prefs_prefer_local_on_conflict" />
-
 </PreferenceScreen>

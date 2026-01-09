@@ -61,7 +61,10 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
     private var prefTouchesWithOtherVisibleWindows: CheckBoxPreference? = null
     private var prefDownloadEverything: CheckBoxPreference? = null
     private var prefAutoSync: CheckBoxPreference? = null
+<<<<<<< HEAD
     private var prefPreferLocalOnConflict: CheckBoxPreference? = null
+=======
+>>>>>>> aa6841e77 (Sync Option + Download all files)
 
     private val enablePasscodeLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -140,7 +143,10 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
         prefTouchesWithOtherVisibleWindows = findPreference(PREFERENCE_TOUCHES_WITH_OTHER_VISIBLE_WINDOWS)
         prefDownloadEverything = findPreference(PREFERENCE_DOWNLOAD_EVERYTHING)
         prefAutoSync = findPreference(PREFERENCE_AUTO_SYNC)
+<<<<<<< HEAD
         prefPreferLocalOnConflict = findPreference(PREFERENCE_PREFER_LOCAL_ON_CONFLICT)
+=======
+>>>>>>> aa6841e77 (Sync Option + Download all files)
 
         prefPasscode?.isVisible = !securityViewModel.isSecurityEnforcedEnabled()
         prefPattern?.isVisible = !securityViewModel.isSecurityEnforcedEnabled()
@@ -279,7 +285,6 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
                 true
             }
         }
-
         // Conflict Resolution Strategy
         prefPreferLocalOnConflict?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
             securityViewModel.setPreferLocalOnConflict(newValue as Boolean)

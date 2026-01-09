@@ -869,5 +869,4 @@
     <!-- Conflict Resolution -->
     <string name="prefs_prefer_local_on_conflict">Prefer local version on conflict</string>
     <string name="prefs_prefer_local_on_conflict_summary">When a file is modified both locally and on server, upload local version instead of creating a conflicted copy</string>
-
 </resources>
