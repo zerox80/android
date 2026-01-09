@@ -110,6 +110,7 @@ import eu.opencloud.android.presentation.spaces.SpacesListFragment.Companion.BUN
 import eu.opencloud.android.presentation.spaces.SpacesListFragment.Companion.REQUEST_KEY_CLICK_SPACE
 import eu.opencloud.android.presentation.spaces.SpacesListViewModel
 import eu.opencloud.android.presentation.transfers.TransfersViewModel
+import eu.opencloud.android.presentation.settings.security.SettingsSecurityFragment
 import eu.opencloud.android.providers.WorkManagerProvider
 import eu.opencloud.android.syncadapter.FileSyncAdapter
 import eu.opencloud.android.ui.dialog.FileAlreadyExistsDialog
@@ -395,6 +396,16 @@ class FileDisplayActivity : FileActivity(),
                 syncProfileOperation.syncUserProfile()
                 val workManagerProvider = WorkManagerProvider(context = baseContext)
                 workManagerProvider.enqueueAvailableOfflinePeriodicWorker()
+                
+                // Enqueue Download Everything worker if enabled
+                if (sharedPreferences.getBoolean(SettingsSecurityFragment.PREFERENCE_DOWNLOAD_EVERYTHING, false)) {
+                    workManagerProvider.enqueueDownloadEverythingWorker()
+                }
+                
+                // Enqueue Local File Sync worker if enabled
+                if (sharedPreferences.getBoolean(SettingsSecurityFragment.PREFERENCE_AUTO_SYNC, false)) {
+                    workManagerProvider.enqueueLocalFileSyncWorker()
+                }
             } else {
                 file?.isFolder?.let { isFolder ->
                     updateFragmentsVisibility(!isFolder)
