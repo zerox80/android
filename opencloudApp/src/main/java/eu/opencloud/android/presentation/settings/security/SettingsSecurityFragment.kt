@@ -196,7 +196,7 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
 
         // Lock access from document provider
         prefLockAccessDocumentProvider?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
-            securityViewModel.setPrefLockAccessDocumentProvider(true)
+            securityViewModel.setPrefLockAccessDocumentProvider(newValue as Boolean)
             notifyDocumentsProviderRoots(requireContext())
             true
         }
