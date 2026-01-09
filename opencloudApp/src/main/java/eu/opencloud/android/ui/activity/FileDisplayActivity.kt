@@ -294,23 +294,14 @@ class FileDisplayActivity : FileActivity(),
             if (!android.os.Environment.isExternalStorageManager()) {
                 val builder = AlertDialog.Builder(this)
                 builder.setTitle(getString(R.string.app_name))
-<<<<<<< HEAD
                 builder.setMessage("To save offline files, the app needs access to all files.")
                 builder.setPositiveButton("Settings") { _, _ ->
-=======
-                builder.setMessage("Um Offline-Dateien öffentlich speichern zu können, benötigt die App Zugriff auf alle Dateien.")
-                builder.setPositiveButton("Einstellungen") { _, _ ->
->>>>>>> 6cb7aa1da (feat: use external storage with human-readable folder names)
                     val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                     intent.addCategory("android.intent.category.DEFAULT")
                     intent.data = Uri.parse("package:$packageName")
                     startActivity(intent)
                 }
-<<<<<<< HEAD
                 builder.setNegativeButton("Cancel", null)
-=======
-                builder.setNegativeButton("Abbrechen", null)
->>>>>>> 6cb7aa1da (feat: use external storage with human-readable folder names)
                 builder.show()
             }
         }
