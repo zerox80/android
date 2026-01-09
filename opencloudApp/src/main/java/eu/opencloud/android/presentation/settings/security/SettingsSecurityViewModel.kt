@@ -63,4 +63,18 @@ class SettingsSecurityViewModel(
             integerKey = R.integer.lock_delay_enforced
         )
     ) != LockTimeout.DISABLED
+
+    // Download Everything Feature
+    fun isDownloadEverythingEnabled(): Boolean =
+        preferencesProvider.getBoolean(SettingsSecurityFragment.PREFERENCE_DOWNLOAD_EVERYTHING, false)
+
+    fun setDownloadEverything(enabled: Boolean) =
+        preferencesProvider.putBoolean(SettingsSecurityFragment.PREFERENCE_DOWNLOAD_EVERYTHING, enabled)
+
+    // Auto-Sync Feature
+    fun isAutoSyncEnabled(): Boolean =
+        preferencesProvider.getBoolean(SettingsSecurityFragment.PREFERENCE_AUTO_SYNC, false)
+
+    fun setAutoSync(enabled: Boolean) =
+        preferencesProvider.putBoolean(SettingsSecurityFragment.PREFERENCE_AUTO_SYNC, enabled)
 }
