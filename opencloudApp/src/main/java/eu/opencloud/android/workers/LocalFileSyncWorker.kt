@@ -21,10 +21,16 @@
 package eu.opencloud.android.workers
 
 import android.accounts.AccountManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import eu.opencloud.android.MainApp
+import eu.opencloud.android.R
 import eu.opencloud.android.domain.UseCaseResult
 import eu.opencloud.android.domain.files.FileRepository
 import eu.opencloud.android.usecases.synchronization.SynchronizeFileUseCase
@@ -39,6 +45,8 @@ import java.util.concurrent.TimeUnit
  * 
  * It monitors all downloaded files and checks if they have been modified locally.
  * If a file has been modified, it uploads the new version to the server.
+ * 
+ * Shows a notification with sync progress and results.
  */
 class LocalFileSyncWorker(
     private val appContext: Context,
@@ -53,6 +61,8 @@ class LocalFileSyncWorker(
 
     override suspend fun doWork(): Result {
         Timber.i("LocalFileSyncWorker started")
+        
+        createNotificationChannel()
 
         return try {
             val accountManager = AccountManager.get(appContext)
@@ -61,7 +71,12 @@ class LocalFileSyncWorker(
             Timber.i("Checking ${accounts.size} accounts for local file changes")
 
             var totalFilesChecked = 0
-            var totalFilesUpdated = 0
+            var filesUploaded = 0
+            var filesDownloaded = 0
+            var filesWithConflicts = 0
+            var filesAlreadySynced = 0
+            var filesNotFound = 0
+            var errors = 0
 
             accounts.forEach { account ->
                 val accountName = account.name
@@ -81,35 +96,54 @@ class LocalFileSyncWorker(
                                     when (val syncResult = useCaseResult.data) {
                                         is SynchronizeFileUseCase.SyncType.UploadEnqueued -> {
                                             Timber.i("File ${file.fileName} has local changes, upload enqueued")
-                                            totalFilesUpdated++
+                                            filesUploaded++
                                         }
                                         is SynchronizeFileUseCase.SyncType.DownloadEnqueued -> {
                                             Timber.i("File ${file.fileName} has remote changes, download enqueued")
-                                            totalFilesUpdated++
+                                            filesDownloaded++
                                         }
                                         is SynchronizeFileUseCase.SyncType.ConflictDetected -> {
                                             Timber.w("File ${file.fileName} has a conflict with etag: ${syncResult.etagInConflict}")
+                                            filesWithConflicts++
                                         }
                                         is SynchronizeFileUseCase.SyncType.AlreadySynchronized -> {
                                             Timber.d("File ${file.fileName} is already synchronized")
+                                            filesAlreadySynced++
                                         }
                                         is SynchronizeFileUseCase.SyncType.FileNotFound -> {
                                             Timber.w("File ${file.fileName} was not found on server")
+                                            filesNotFound++
                                         }
                                     }
                                 }
                                 is UseCaseResult.Error -> {
                                     Timber.e(useCaseResult.throwable, "Error syncing file ${file.fileName}")
+                                    errors++
                                 }
                             }
                         } catch (e: Exception) {
                             Timber.e(e, "Error syncing file ${file.fileName}")
+                            errors++
                         }
                     }
                 }
             }
 
-            Timber.i("LocalFileSyncWorker completed: checked $totalFilesChecked files, updated $totalFilesUpdated")
+            val summary = buildString {
+                append("Checked: $totalFilesChecked")
+                if (filesUploaded > 0) append(" | Uploaded: $filesUploaded")
+                if (filesDownloaded > 0) append(" | Downloaded: $filesDownloaded")
+                if (filesWithConflicts > 0) append(" | Conflicts: $filesWithConflicts")
+                if (errors > 0) append(" | Errors: $errors")
+            }
+
+            Timber.i("LocalFileSyncWorker completed: $summary")
+            
+            // Only show notification if something changed
+            if (filesUploaded > 0 || filesDownloaded > 0 || filesWithConflicts > 0) {
+                showCompletionNotification(summary)
+            }
+
             Result.success()
         } catch (exception: Exception) {
             Timber.e(exception, "LocalFileSyncWorker failed")
@@ -117,9 +151,42 @@ class LocalFileSyncWorker(
         }
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Auto-Sync",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows when local file changes are synced"
+            }
+            val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showCompletionNotification(summary: String) {
+        try {
+            val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notification = NotificationCompat.Builder(appContext, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle("Auto-Sync Complete")
+                .setContentText(summary)
+                .setSmallIcon(R.drawable.notification_icon)
+                .setAutoCancel(true)
+                .build()
+
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Timber.e(e, "Error showing notification")
+        }
+    }
+
     companion object {
         const val LOCAL_FILE_SYNC_WORKER = "LOCAL_FILE_SYNC_WORKER"
         const val repeatInterval: Long = 5L
         val repeatIntervalTimeUnit: TimeUnit = TimeUnit.MINUTES
+
+        private const val NOTIFICATION_CHANNEL_ID = "auto_sync_channel"
+        private const val NOTIFICATION_ID = 9002
     }
 }
