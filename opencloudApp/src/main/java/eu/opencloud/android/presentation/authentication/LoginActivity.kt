@@ -123,10 +123,10 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Log OAuth redirect details for debugging (especially Firefox issues)
         Timber.d("onCreate called with intent data: ${intent.data}, isTaskRoot: $isTaskRoot")
-        
+
         if (intent.data != null && (intent.data?.getQueryParameter("code") != null || intent.data?.getQueryParameter("error") != null)) {
             Timber.d("OAuth redirect detected with code or error parameter")
             if (!isTaskRoot) {
