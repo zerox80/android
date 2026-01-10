@@ -4,11 +4,9 @@ import android.accounts.AccountManager
 import android.content.Context
 import eu.opencloud.android.data.providers.SharedPreferencesProvider
 import eu.opencloud.android.lib.common.ConnectionValidator
-import eu.opencloud.android.lib.common.authentication.OpenCloudCredentialsFactory
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
