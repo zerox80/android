@@ -93,12 +93,11 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 import timber.log.Timber
 import java.io.File
 
-
-    private const val KEY_SERVER_BASE_URL = "KEY_SERVER_BASE_URL"
-    private const val KEY_OIDC_SUPPORTED = "KEY_OIDC_SUPPORTED"
-    private const val KEY_CODE_VERIFIER = "KEY_CODE_VERIFIER"
-    private const val KEY_CODE_CHALLENGE = "KEY_CODE_CHALLENGE"
-    private const val KEY_OIDC_STATE = "KEY_OIDC_STATE"
+private const val KEY_SERVER_BASE_URL = "KEY_SERVER_BASE_URL"
+private const val KEY_OIDC_SUPPORTED = "KEY_OIDC_SUPPORTED"
+private const val KEY_CODE_VERIFIER = "KEY_CODE_VERIFIER"
+private const val KEY_CODE_CHALLENGE = "KEY_CODE_CHALLENGE"
+private const val KEY_OIDC_STATE = "KEY_OIDC_STATE"
 
 class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrustedCertListener, SecurityEnforced {
 
@@ -122,10 +121,10 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Log OAuth redirect details for debugging (especially Firefox issues)
         Timber.d("onCreate called with intent data: ${intent.data}, isTaskRoot: $isTaskRoot")
-        
+
         if (intent.data != null && (intent.data?.getQueryParameter("code") != null || intent.data?.getQueryParameter("error") != null)) {
             Timber.d("OAuth redirect detected with code or error parameter")
             if (!isTaskRoot) {
@@ -195,7 +194,7 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             // Restore UI state
             if (::serverBaseUrl.isInitialized && serverBaseUrl.isNotEmpty()) {
                 binding.hostUrlInput.setText(serverBaseUrl)
-                
+
                 if (authTokenType == BASIC_TOKEN_TYPE) {
                     showOrHideBasicAuthFields(shouldBeVisible = true)
                 } else if (authTokenType == OAUTH_TOKEN_TYPE) {

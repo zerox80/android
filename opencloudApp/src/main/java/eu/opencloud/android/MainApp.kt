@@ -118,8 +118,6 @@ class MainApp : Application() {
 
         // initialise thumbnails cache on background thread
         // initialise thumbnails cache on background thread
-        
-
 
         initDependencyInjection()
 
