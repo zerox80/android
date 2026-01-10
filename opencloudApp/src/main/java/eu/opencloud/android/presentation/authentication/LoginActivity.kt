@@ -115,6 +115,7 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     private var oidcSupported = false
 
     private lateinit var binding: AccountSetupBinding
+    private var pendingAuthorizationIntent: Intent? = null
 
     // For handling AbstractAccountAuthenticator responses
     private var accountAuthenticatorResponse: AccountAuthenticatorResponse? = null
@@ -232,6 +233,12 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
                 restoreAuthState()
             }
             handleGetAuthorizationCodeResponse(intent)
+        }
+
+        // Process any pending intent that arrived before binding was ready
+        pendingAuthorizationIntent?.let {
+            handleGetAuthorizationCodeResponse(it)
+            pendingAuthorizationIntent = null
         }
     }
 
@@ -614,7 +621,10 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     }
 
     private fun handleGetAuthorizationCodeResponse(intent: Intent) {
-        if (!::binding.isInitialized) return
+        if (!::binding.isInitialized) {
+            pendingAuthorizationIntent = intent
+            return
+        }
 
         val authorizationCode = intent.data?.getQueryParameter("code")
         val state = intent.data?.getQueryParameter("state")
