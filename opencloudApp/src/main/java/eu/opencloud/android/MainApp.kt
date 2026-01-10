@@ -116,9 +116,6 @@ class MainApp : Application() {
 
         SingleSessionManager.setUserAgent(userAgent)
 
-
-
-
         initDependencyInjection()
 
         // register global protection with pass code, pattern lock and biometric lock
