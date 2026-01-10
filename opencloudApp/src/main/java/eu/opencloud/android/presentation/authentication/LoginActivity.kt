@@ -122,8 +122,14 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Log OAuth redirect details for debugging (especially Firefox issues)
+        Timber.d("onCreate called with intent data: ${intent.data}, isTaskRoot: $isTaskRoot")
+        
         if (intent.data != null && (intent.data?.getQueryParameter("code") != null || intent.data?.getQueryParameter("error") != null)) {
+            Timber.d("OAuth redirect detected with code or error parameter")
             if (!isTaskRoot) {
+                Timber.d("Not task root, forwarding OAuth redirect to existing LoginActivity instance")
                 val newIntent = Intent(this, LoginActivity::class.java)
                 newIntent.data = intent.data
                 newIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -579,6 +585,11 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         val customTabsBuilder: CustomTabsIntent.Builder = CustomTabsIntent.Builder()
         val customTabsIntent: CustomTabsIntent = customTabsBuilder.build()
 
+        // Add flags to improve compatibility with Firefox and other browsers
+        // FLAG_ACTIVITY_NEW_TASK ensures the browser opens in a separate task,
+        // which helps Firefox properly handle the OAuth redirect back to the app
+        customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
         val authorizationEndpointUri = OAuthUtils.buildAuthorizationRequest(
             authorizationEndpoint = authorizationEndpoint,
             redirectUri = OAuthUtils.buildRedirectUri(applicationContext).toString(),
@@ -609,6 +620,8 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         intent?.let {
+            Timber.d("onNewIntent received with data: ${it.data}")
+            setIntent(it)
             handleGetAuthorizationCodeResponse(it)
         }
     }
