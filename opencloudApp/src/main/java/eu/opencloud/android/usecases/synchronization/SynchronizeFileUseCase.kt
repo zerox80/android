@@ -83,17 +83,10 @@ class SynchronizeFileUseCase(
                 Timber.i("So it has changed remotely: $changedRemotely")
 
                 if (changedLocally && changedRemotely) {
-                    // 5.1 File has changed locally and remotely. We got a conflict, save the conflict.
-                    Timber.i("File ${fileToSynchronize.fileName} has changed locally and remotely. We got a conflict with etag: ${serverFile.etag}")
-                    if (fileToSynchronize.etagInConflict == null) {
-                        saveConflictUseCase(
-                            SaveConflictUseCase.Params(
-                                fileId = fileToSynchronize.id!!,
-                                eTagInConflict = serverFile.etag!!
-                            )
-                        )
-                    }
-                    SyncType.ConflictDetected(serverFile.etag!!)
+                    // 5.1 File has changed locally and remotely. Auto-resolve by uploading local version.
+                    Timber.i("File ${fileToSynchronize.fileName} has changed locally and remotely. Auto-resolving by uploading local version.")
+                    val uuid = requestForUpload(accountName, fileToSynchronize)
+                    SyncType.UploadEnqueued(uuid)
                 } else if (changedRemotely) {
                     // 5.2 File has changed ONLY remotely -> download new version
                     Timber.i("File ${fileToSynchronize.fileName} has changed remotely. Let's download the new version")
