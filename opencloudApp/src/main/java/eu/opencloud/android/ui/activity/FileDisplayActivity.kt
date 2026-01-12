@@ -1384,10 +1384,8 @@ class FileDisplayActivity : FileActivity(),
                         }
                     }
 
-                    is SynchronizeFileUseCase.SyncType.ConflictDetected -> {
-                        val showConflictActivityIntent = Intent(this, ConflictsResolveActivity::class.java)
-                        showConflictActivityIntent.putExtra(ConflictsResolveActivity.EXTRA_FILE, file)
-                        startActivity(showConflictActivityIntent)
+                    is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
+                        showSnackMessage(getString(R.string.sync_conflict_resolved_with_copy))
                     }
 
                     is SynchronizeFileUseCase.SyncType.DownloadEnqueued -> {
