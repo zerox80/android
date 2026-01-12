@@ -137,7 +137,6 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
                 return
             }
         }
-        super.onCreate(savedInstanceState)
 
         checkPasscodeEnforced(this)
 
