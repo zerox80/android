@@ -237,6 +237,14 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             }
             handleGetAuthorizationCodeResponse(intent)
         }
+
+        // Process any pending intent that arrived before binding was ready
+        pendingAuthorizationIntent?.let {
+            handleGetAuthorizationCodeResponse(it)
+            pendingAuthorizationIntent = null
+        }
+
+
     }
 
     private fun handleDeepLink() {
