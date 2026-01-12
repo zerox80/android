@@ -78,9 +78,11 @@ class SynchronizeFileUseCase(
                 val uuid = requestForDownload(accountName = accountName, ocFile = fileToSynchronize)
                 SyncType.DownloadEnqueued(uuid)
             } else {
-                // 3. Check if file has changed locally
-                val changedLocally = fileToSynchronize.localModificationTimestamp > fileToSynchronize.lastSyncDateForData!!
-                Timber.i("Local file modification timestamp :${fileToSynchronize.localModificationTimestamp}" +
+                // 3. Check if file has changed locally by reading ACTUAL file timestamp from filesystem
+                val localFile = File(fileToSynchronize.storagePath!!)
+                val actualFileModificationTime = localFile.lastModified()
+                val changedLocally = actualFileModificationTime > fileToSynchronize.lastSyncDateForData!!
+                Timber.i("Actual file modification timestamp :$actualFileModificationTime" +
                         " and last sync date for data :${fileToSynchronize.lastSyncDateForData}")
                 Timber.i("So it has changed locally: $changedLocally")
 
