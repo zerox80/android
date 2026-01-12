@@ -102,8 +102,8 @@ class LocalFileSyncWorker(
                                             Timber.i("File ${file.fileName} has remote changes, download enqueued")
                                             filesDownloaded++
                                         }
-                                        is SynchronizeFileUseCase.SyncType.ConflictDetected -> {
-                                            Timber.w("File ${file.fileName} has a conflict with etag: ${syncResult.etagInConflict}")
+                                        is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
+                                            Timber.i("File ${file.fileName} had a conflict. Conflicted copy created at: ${syncResult.conflictedCopyPath}")
                                             filesWithConflicts++
                                         }
                                         is SynchronizeFileUseCase.SyncType.AlreadySynchronized -> {

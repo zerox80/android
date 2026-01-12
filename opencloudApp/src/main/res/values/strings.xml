@@ -403,6 +403,7 @@
     <string name="new_remote_version_found_msg">A new version was found in server. Downloading…</string>
     <string name="download_enqueued_msg">Download enqueued</string>
     <string name="upload_enqueued_msg">Upload enqueued</string>
+    <string name="sync_conflict_resolved_with_copy">Conflict resolved. Your local changes were saved as a separate copy.</string>
     <string name="create_dir_fail_msg">Folder could not be created</string>
     <string name="create_file_fail_msg">File could not be created</string>
     <string name="filename_forbidden_characters">Forbidden characters: / \\</string>

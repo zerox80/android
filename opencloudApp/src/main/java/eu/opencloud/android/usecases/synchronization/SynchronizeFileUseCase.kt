@@ -31,6 +31,10 @@ import eu.opencloud.android.usecases.transfers.uploads.UploadFileInConflictUseCa
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import timber.log.Timber
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 class SynchronizeFileUseCase(
@@ -83,10 +87,20 @@ class SynchronizeFileUseCase(
                 Timber.i("So it has changed remotely: $changedRemotely")
 
                 if (changedLocally && changedRemotely) {
-                    // 5.1 File has changed locally and remotely. Auto-resolve by uploading local version.
-                    Timber.i("File ${fileToSynchronize.fileName} has changed locally and remotely. Auto-resolving by uploading local version.")
-                    val uuid = requestForUpload(accountName, fileToSynchronize)
-                    SyncType.UploadEnqueued(uuid)
+                    // 5.1 File has changed locally and remotely. Create conflicted copy of local, download remote.
+                    Timber.i("File ${fileToSynchronize.fileName} has changed locally and remotely. Creating conflicted copy.")
+                    val conflictedCopyPath = createConflictedCopyPath(fileToSynchronize)
+                    val renamed = renameLocalFile(fileToSynchronize.storagePath!!, conflictedCopyPath)
+                    if (renamed) {
+                        Timber.i("Local file renamed to conflicted copy: $conflictedCopyPath")
+                        val uuid = requestForDownload(accountName, fileToSynchronize)
+                        SyncType.ConflictResolvedWithCopy(uuid, conflictedCopyPath)
+                    } else {
+                        Timber.w("Failed to rename local file to conflicted copy")
+                        // Fallback: download remote anyway, local changes may be overwritten
+                        val uuid = requestForDownload(accountName, fileToSynchronize)
+                        SyncType.DownloadEnqueued(uuid)
+                    }
                 } else if (changedRemotely) {
                     // 5.2 File has changed ONLY remotely -> download new version
                     Timber.i("File ${fileToSynchronize.fileName} has changed remotely. Let's download the new version")
@@ -124,13 +138,36 @@ class SynchronizeFileUseCase(
             )
         )
 
+    private fun createConflictedCopyPath(ocFile: OCFile): String {
+        val originalPath = ocFile.storagePath!!
+        val file = File(originalPath)
+        val nameWithoutExt = file.nameWithoutExtension
+        val extension = file.extension
+        val timestamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
+        val conflictedName = if (extension.isNotEmpty()) {
+            "${nameWithoutExt}_conflicted_copy_$timestamp.$extension"
+        } else {
+            "${nameWithoutExt}_conflicted_copy_$timestamp"
+        }
+        return File(file.parent, conflictedName).absolutePath
+    }
+
+    private fun renameLocalFile(oldPath: String, newPath: String): Boolean {
+        return try {
+            File(oldPath).renameTo(File(newPath))
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to rename local file from $oldPath to $newPath")
+            false
+        }
+    }
+
     data class Params(
         val fileToSynchronize: OCFile,
     )
 
     sealed interface SyncType {
         object FileNotFound : SyncType
-        data class ConflictDetected(val etagInConflict: String) : SyncType
+        data class ConflictResolvedWithCopy(val workerId: UUID?, val conflictedCopyPath: String) : SyncType
         data class DownloadEnqueued(val workerId: UUID?) : SyncType
         data class UploadEnqueued(val workerId: UUID?) : SyncType
         object AlreadySynchronized : SyncType
