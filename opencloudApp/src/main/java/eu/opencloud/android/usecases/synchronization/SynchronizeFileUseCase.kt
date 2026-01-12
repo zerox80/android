@@ -93,6 +93,17 @@ class SynchronizeFileUseCase(
                     val renamed = renameLocalFile(fileToSynchronize.storagePath!!, conflictedCopyPath)
                     if (renamed) {
                         Timber.i("Local file renamed to conflicted copy: $conflictedCopyPath")
+                        // Refresh parent folder so the conflicted copy appears in the file list
+                        try {
+                            fileRepository.refreshFolder(
+                                remotePath = fileToSynchronize.getParentRemotePath(),
+                                accountName = accountName,
+                                spaceId = fileToSynchronize.spaceId
+                            )
+                            Timber.i("Parent folder refreshed after creating conflicted copy")
+                        } catch (e: Exception) {
+                            Timber.w(e, "Failed to refresh parent folder after creating conflicted copy")
+                        }
                         val uuid = requestForDownload(accountName, fileToSynchronize)
                         SyncType.ConflictResolvedWithCopy(uuid, conflictedCopyPath)
                     } else {
