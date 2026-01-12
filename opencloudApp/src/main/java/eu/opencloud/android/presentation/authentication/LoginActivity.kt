@@ -139,7 +139,6 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             }
         }
 
-
         checkPasscodeEnforced(this)
 
         // Protection against screen recording
