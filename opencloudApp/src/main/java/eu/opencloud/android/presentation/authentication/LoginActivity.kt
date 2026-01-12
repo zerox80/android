@@ -139,7 +139,6 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
                 return
             }
         }
-        super.onCreate(savedInstanceState)
 
         // Log OAuth redirect details for debugging (especially Firefox issues)
         Timber.d("onCreate called with intent data: ${intent.data}, isTaskRoot: $isTaskRoot")
