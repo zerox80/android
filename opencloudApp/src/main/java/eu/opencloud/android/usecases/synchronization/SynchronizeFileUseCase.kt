@@ -21,11 +21,13 @@
 
 package eu.opencloud.android.usecases.synchronization
 
+import eu.opencloud.android.data.providers.SharedPreferencesProvider
 import eu.opencloud.android.domain.BaseUseCaseWithResult
 import eu.opencloud.android.domain.exceptions.FileNotFoundException
 import eu.opencloud.android.domain.files.FileRepository
 import eu.opencloud.android.domain.files.model.OCFile
 import eu.opencloud.android.domain.files.usecases.SaveConflictUseCase
+import eu.opencloud.android.presentation.settings.security.SettingsSecurityFragment
 import eu.opencloud.android.usecases.transfers.downloads.DownloadFileUseCase
 import eu.opencloud.android.usecases.transfers.uploads.UploadFileInConflictUseCase
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +44,7 @@ class SynchronizeFileUseCase(
     private val uploadFileInConflictUseCase: UploadFileInConflictUseCase,
     private val saveConflictUseCase: SaveConflictUseCase,
     private val fileRepository: FileRepository,
+    private val preferencesProvider: SharedPreferencesProvider,
 ) : BaseUseCaseWithResult<SynchronizeFileUseCase.SyncType, SynchronizeFileUseCase.Params>() {
 
     override fun run(params: Params): SyncType {
@@ -87,30 +90,42 @@ class SynchronizeFileUseCase(
                 Timber.i("So it has changed remotely: $changedRemotely")
 
                 if (changedLocally && changedRemotely) {
-                    // 5.1 File has changed locally and remotely. Create conflicted copy of local, download remote.
-                    Timber.i("File ${fileToSynchronize.fileName} has changed locally and remotely. Creating conflicted copy.")
-                    val conflictedCopyPath = createConflictedCopyPath(fileToSynchronize)
-                    val renamed = renameLocalFile(fileToSynchronize.storagePath!!, conflictedCopyPath)
-                    if (renamed) {
-                        Timber.i("Local file renamed to conflicted copy: $conflictedCopyPath")
-                        // Refresh parent folder so the conflicted copy appears in the file list
-                        try {
-                            fileRepository.refreshFolder(
-                                remotePath = fileToSynchronize.getParentRemotePath(),
-                                accountName = accountName,
-                                spaceId = fileToSynchronize.spaceId
-                            )
-                            Timber.i("Parent folder refreshed after creating conflicted copy")
-                        } catch (e: Exception) {
-                            Timber.w(e, "Failed to refresh parent folder after creating conflicted copy")
-                        }
-                        val uuid = requestForDownload(accountName, fileToSynchronize)
-                        SyncType.ConflictResolvedWithCopy(uuid, conflictedCopyPath)
+                    // 5.1 File has changed locally and remotely.
+                    val preferLocal = preferencesProvider.getBoolean(
+                        SettingsSecurityFragment.PREFERENCE_PREFER_LOCAL_ON_CONFLICT, false
+                    )
+                    
+                    if (preferLocal) {
+                        // User prefers local version - upload it (overwrites remote)
+                        Timber.i("File ${fileToSynchronize.fileName} has conflict. User prefers local version, uploading.")
+                        val uuid = requestForUpload(accountName, fileToSynchronize)
+                        SyncType.UploadEnqueued(uuid)
                     } else {
-                        Timber.w("Failed to rename local file to conflicted copy")
-                        // Fallback: download remote anyway, local changes may be overwritten
-                        val uuid = requestForDownload(accountName, fileToSynchronize)
-                        SyncType.DownloadEnqueued(uuid)
+                        // Default: Create conflicted copy of local, download remote.
+                        Timber.i("File ${fileToSynchronize.fileName} has changed locally and remotely. Creating conflicted copy.")
+                        val conflictedCopyPath = createConflictedCopyPath(fileToSynchronize)
+                        val renamed = renameLocalFile(fileToSynchronize.storagePath!!, conflictedCopyPath)
+                        if (renamed) {
+                            Timber.i("Local file renamed to conflicted copy: $conflictedCopyPath")
+                            // Refresh parent folder so the conflicted copy appears in the file list
+                            try {
+                                fileRepository.refreshFolder(
+                                    remotePath = fileToSynchronize.getParentRemotePath(),
+                                    accountName = accountName,
+                                    spaceId = fileToSynchronize.spaceId
+                                )
+                                Timber.i("Parent folder refreshed after creating conflicted copy")
+                            } catch (e: Exception) {
+                                Timber.w(e, "Failed to refresh parent folder after creating conflicted copy")
+                            }
+                            val uuid = requestForDownload(accountName, fileToSynchronize)
+                            SyncType.ConflictResolvedWithCopy(uuid, conflictedCopyPath)
+                        } else {
+                            Timber.w("Failed to rename local file to conflicted copy")
+                            // Fallback: download remote anyway, local changes may be overwritten
+                            val uuid = requestForDownload(accountName, fileToSynchronize)
+                            SyncType.DownloadEnqueued(uuid)
+                        }
                     }
                 } else if (changedRemotely) {
                     // 5.2 File has changed ONLY remotely -> download new version

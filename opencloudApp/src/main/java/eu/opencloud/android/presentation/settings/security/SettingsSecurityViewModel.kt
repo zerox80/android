@@ -77,4 +77,11 @@ class SettingsSecurityViewModel(
 
     fun setAutoSync(enabled: Boolean) =
         preferencesProvider.putBoolean(SettingsSecurityFragment.PREFERENCE_AUTO_SYNC, enabled)
+
+    // Conflict Resolution Strategy
+    fun isPreferLocalOnConflictEnabled(): Boolean =
+        preferencesProvider.getBoolean(SettingsSecurityFragment.PREFERENCE_PREFER_LOCAL_ON_CONFLICT, false)
+
+    fun setPreferLocalOnConflict(enabled: Boolean) =
+        preferencesProvider.putBoolean(SettingsSecurityFragment.PREFERENCE_PREFER_LOCAL_ON_CONFLICT, enabled)
 }
