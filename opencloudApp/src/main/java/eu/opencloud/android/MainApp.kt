@@ -41,7 +41,6 @@ import androidx.core.content.pm.PackageInfoCompat
 import eu.opencloud.android.data.providers.implementation.OCSharedPreferencesProvider
 
 import eu.opencloud.android.datamodel.ThumbnailsCacheManager
-import eu.opencloud.android.datamodel.ThumbnailsCacheManager
 import eu.opencloud.android.db.PreferenceManager
 import eu.opencloud.android.dependecyinjection.commonModule
 import eu.opencloud.android.dependecyinjection.localDataSourceModule
