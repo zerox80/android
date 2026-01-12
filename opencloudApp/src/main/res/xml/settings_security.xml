@@ -63,4 +63,11 @@
         app:summary="@string/prefs_auto_sync_summary"
         app:title="@string/prefs_auto_sync" />
 
+    <!-- Conflict Resolution Strategy -->
+    <CheckBoxPreference
+        app:iconSpaceReserved="false"
+        app:key="prefer_local_on_conflict"
+        app:summary="@string/prefs_prefer_local_on_conflict_summary"
+        app:title="@string/prefs_prefer_local_on_conflict" />
+
 </PreferenceScreen>
