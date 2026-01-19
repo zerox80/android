@@ -192,10 +192,8 @@ class FileDetailsFragment : FileFragment() {
                         SynchronizeFileUseCase.SyncType.AlreadySynchronized -> {
                             showMessageInSnackbar(getString(R.string.sync_file_nothing_to_do_msg))
                         }
-                        is SynchronizeFileUseCase.SyncType.ConflictDetected -> {
-                            val showConflictActivityIntent = Intent(requireActivity(), ConflictsResolveActivity::class.java)
-                            showConflictActivityIntent.putExtra(ConflictsResolveActivity.EXTRA_FILE, file)
-                            startActivity(showConflictActivityIntent)
+                        is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
+                            showMessageInSnackbar(getString(R.string.sync_conflict_resolved_with_copy))
                         }
 
                         is SynchronizeFileUseCase.SyncType.DownloadEnqueued -> {
@@ -433,7 +431,9 @@ class FileDetailsFragment : FileFragment() {
                 imageView.load(
                     ThumbnailsRequester.getPreviewUriForFile(
                         OCFileWithSyncInfo(ocFile, null),
-                        fileDetailsViewModel.getAccount()
+                        fileDetailsViewModel.getAccount(),
+                        1024,
+                        1024
                     ),
                     ThumbnailsRequester.getCoilImageLoader(fileDetailsViewModel.getAccount())
                 ) {

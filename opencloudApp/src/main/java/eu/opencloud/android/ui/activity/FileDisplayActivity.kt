@@ -110,6 +110,7 @@ import eu.opencloud.android.presentation.spaces.SpacesListFragment.Companion.BUN
 import eu.opencloud.android.presentation.spaces.SpacesListFragment.Companion.REQUEST_KEY_CLICK_SPACE
 import eu.opencloud.android.presentation.spaces.SpacesListViewModel
 import eu.opencloud.android.presentation.transfers.TransfersViewModel
+import eu.opencloud.android.presentation.settings.security.SettingsSecurityFragment
 import eu.opencloud.android.providers.WorkManagerProvider
 import eu.opencloud.android.syncadapter.FileSyncAdapter
 import eu.opencloud.android.ui.dialog.FileAlreadyExistsDialog
@@ -284,7 +285,26 @@ class FileDisplayActivity : FileActivity(),
 
 
         checkNotificationPermission()
+        checkManageExternalStoragePermission()
         Timber.v("onCreate() end")
+    }
+
+    private fun checkManageExternalStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                val builder = AlertDialog.Builder(this)
+                builder.setTitle(getString(R.string.app_name))
+                builder.setMessage("To save offline files, the app needs access to all files.")
+                builder.setPositiveButton("Settings") { _, _ ->
+                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    intent.addCategory("android.intent.category.DEFAULT")
+                    intent.data = Uri.parse("package:$packageName")
+                    startActivity(intent)
+                }
+                builder.setNegativeButton("Cancel", null)
+                builder.show()
+            }
+        }
     }
 
     private fun checkNotificationPermission() {
@@ -376,6 +396,16 @@ class FileDisplayActivity : FileActivity(),
                 syncProfileOperation.syncUserProfile()
                 val workManagerProvider = WorkManagerProvider(context = baseContext)
                 workManagerProvider.enqueueAvailableOfflinePeriodicWorker()
+                
+                // Enqueue Download Everything worker if enabled
+                if (sharedPreferences.getBoolean(SettingsSecurityFragment.PREFERENCE_DOWNLOAD_EVERYTHING, false)) {
+                    workManagerProvider.enqueueDownloadEverythingWorker()
+                }
+                
+                // Enqueue Local File Sync worker if enabled
+                if (sharedPreferences.getBoolean(SettingsSecurityFragment.PREFERENCE_AUTO_SYNC, false)) {
+                    workManagerProvider.enqueueLocalFileSyncWorker()
+                }
             } else {
                 file?.isFolder?.let { isFolder ->
                     updateFragmentsVisibility(!isFolder)
@@ -1354,10 +1384,8 @@ class FileDisplayActivity : FileActivity(),
                         }
                     }
 
-                    is SynchronizeFileUseCase.SyncType.ConflictDetected -> {
-                        val showConflictActivityIntent = Intent(this, ConflictsResolveActivity::class.java)
-                        showConflictActivityIntent.putExtra(ConflictsResolveActivity.EXTRA_FILE, file)
-                        startActivity(showConflictActivityIntent)
+                    is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
+                        showSnackMessage(getString(R.string.sync_conflict_resolved_with_copy))
                     }
 
                     is SynchronizeFileUseCase.SyncType.DownloadEnqueued -> {

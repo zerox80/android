@@ -114,11 +114,12 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     private var oidcSupported = false
 
     private lateinit var binding: AccountSetupBinding
+    private var pendingAuthorizationIntent: Intent? = null
 
     // For handling AbstractAccountAuthenticator responses
     private var accountAuthenticatorResponse: AccountAuthenticatorResponse? = null
     private var resultBundle: Bundle? = null
-    private var pendingAuthorizationIntent: Intent? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,6 +139,23 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
                 return
             }
         }
+
+        // Log OAuth redirect details for debugging (especially Firefox issues)
+        Timber.d("onCreate called with intent data: ${intent.data}, isTaskRoot: $isTaskRoot")
+
+        if (intent.data != null && (intent.data?.getQueryParameter("code") != null || intent.data?.getQueryParameter("error") != null)) {
+            Timber.d("OAuth redirect detected with code or error parameter")
+            if (!isTaskRoot) {
+                Timber.d("Not task root, forwarding OAuth redirect to existing LoginActivity instance")
+                val newIntent = Intent(this, LoginActivity::class.java)
+                newIntent.data = intent.data
+                newIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(newIntent)
+                finish()
+                return
+            }
+        }
+
 
         checkPasscodeEnforced(this)
 
@@ -244,7 +262,6 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             handleGetAuthorizationCodeResponse(it)
             pendingAuthorizationIntent = null
         }
-
 
     }
 
@@ -634,6 +651,11 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     }
 
     private fun handleGetAuthorizationCodeResponse(intent: Intent) {
+        if (!::binding.isInitialized) {
+            pendingAuthorizationIntent = intent
+            return
+        }
+
         val authorizationCode = intent.data?.getQueryParameter("code")
         val state = intent.data?.getQueryParameter("state")
 
