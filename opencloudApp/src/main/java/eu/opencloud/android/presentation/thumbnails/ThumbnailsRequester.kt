@@ -58,26 +58,17 @@ object ThumbnailsRequester : KoinComponent {
     private const val DISK_CACHE_SIZE: Long = 1024 * 1024 * 100 // 100MB
 
     private val imageLoaders = ConcurrentHashMap<String, ImageLoader>()
-    private var sharedDiskCache: DiskCache? = null
-    private var sharedMemoryCache: MemoryCache? = null
-
-    private fun getSharedDiskCache(): DiskCache {
-        if (sharedDiskCache == null) {
-            sharedDiskCache = DiskCache.Builder()
-                .directory(appContext.cacheDir.resolve("thumbnails_coil_cache"))
-                .maxSizeBytes(DISK_CACHE_SIZE)
-                .build()
-        }
-        return sharedDiskCache!!
+    private val sharedDiskCache: DiskCache by lazy {
+        DiskCache.Builder()
+            .directory(appContext.cacheDir.resolve("thumbnails_coil_cache"))
+            .maxSizeBytes(DISK_CACHE_SIZE)
+            .build()
     }
 
-    private fun getSharedMemoryCache(): MemoryCache {
-        if (sharedMemoryCache == null) {
-            sharedMemoryCache = MemoryCache.Builder(appContext)
-                .maxSizePercent(0.25)
-                .build()
-        }
-        return sharedMemoryCache!!
+    private val sharedMemoryCache: MemoryCache by lazy {
+        MemoryCache.Builder(appContext)
+            .maxSizePercent(0.25)
+            .build()
     }
 
     fun getAvatarUri(account: Account): String {
@@ -90,22 +81,24 @@ object ThumbnailsRequester : KoinComponent {
         return "$baseUrl/index.php/avatar/${android.net.Uri.encode(username)}/384"
     }
 
-    fun getPreviewUriForFile(file: OCFile, account: Account, etag: String? = null): String =
-        getPreviewUri(file.remotePath, etag ?: file.etag, account)
+    fun getPreviewUriForFile(file: OCFile, account: Account, etag: String? = null, width: Int = 1024, height: Int = 1024): String =
+        getPreviewUri(file.remotePath, etag ?: file.etag, account, width, height)
 
-    fun getPreviewUriForFile(fileWithSyncInfo: OCFileWithSyncInfo, account: Account): String =
-        getPreviewUriForFile(fileWithSyncInfo.file, account)
+    fun getPreviewUriForFile(fileWithSyncInfo: OCFileWithSyncInfo, account: Account, width: Int = 1024, height: Int = 1024): String =
+        getPreviewUriForFile(fileWithSyncInfo.file, account, null, width, height)
 
     fun getPreviewUriForSpaceSpecial(spaceSpecial: SpaceSpecial): String =
         String.format(Locale.US, SPACE_SPECIAL_PREVIEW_URI, spaceSpecial.webDavUrl, 1024, 1024, spaceSpecial.eTag)
 
-    private fun getPreviewUri(remotePath: String?, etag: String?, account: Account): String {
+    private fun getPreviewUri(remotePath: String?, etag: String?, account: Account, width: Int, height: Int): String {
         val accountManager = AccountManager.get(appContext)
         val baseUrl = accountManager.getUserData(account, eu.opencloud.android.lib.common.accounts.AccountUtils.Constants.KEY_OC_BASE_URL)
+            ?.trimEnd('/')
+            .orEmpty()
         val path = if (remotePath?.startsWith("/") == true) remotePath else "/$remotePath"
         val encodedPath = Uri.encode(path, "/")
 
-        return String.format(Locale.US, FILE_PREVIEW_URI, baseUrl, encodedPath, 1024, 1024, etag)
+        return String.format(Locale.US, FILE_PREVIEW_URI, baseUrl, encodedPath, width, height, etag)
     }
 
     fun getCoilImageLoader(): ImageLoader {
@@ -128,10 +121,10 @@ object ThumbnailsRequester : KoinComponent {
                     .addInterceptor(coilRequestHeaderInterceptor).build()
             ).logger(DebugLogger())
                 .memoryCache {
-                    getSharedMemoryCache()
+                    sharedMemoryCache
                 }
                 .diskCache {
-                    getSharedDiskCache()
+                    sharedDiskCache
                 }
                 .build()
         }

@@ -33,7 +33,7 @@ class AvatarUtils : KoinComponent {
     /**
      * Show the avatar corresponding to the received account in an {@ImageView}.
      * <p>
-     * The avatar is shown if available locally in {@link ThumbnailsCacheManager}. The avatar is not
+     * The avatar is shown if available locally. The avatar is not
      * fetched from the server if not available.
      * <p>
      * If there is no avatar stored, a colored icon is generated with the first letter of the account username.

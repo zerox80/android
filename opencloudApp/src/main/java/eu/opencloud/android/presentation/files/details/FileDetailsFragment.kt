@@ -433,7 +433,9 @@ class FileDetailsFragment : FileFragment() {
                 imageView.load(
                     ThumbnailsRequester.getPreviewUriForFile(
                         OCFileWithSyncInfo(ocFile, null),
-                        fileDetailsViewModel.getAccount()
+                        fileDetailsViewModel.getAccount(),
+                        1024,
+                        1024
                     ),
                     ThumbnailsRequester.getCoilImageLoader(fileDetailsViewModel.getAccount())
                 ) {
