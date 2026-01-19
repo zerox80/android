@@ -376,6 +376,7 @@ class SettingsSecurityFragmentTest {
 
         onView(withText(R.string.prefs_lock_access_from_document_provider)).perform(click())
         assertTrue(prefLockAccessDocumentProvider.isChecked)
+        io.mockk.verify { securityViewModel.setPrefLockAccessDocumentProvider(true) }
     }
 
     @Test
@@ -385,6 +386,7 @@ class SettingsSecurityFragmentTest {
         onView(withText(R.string.prefs_lock_access_from_document_provider)).perform(click())
         onView(withText(R.string.prefs_lock_access_from_document_provider)).perform(click())
         assertFalse(prefLockAccessDocumentProvider.isChecked)
+        io.mockk.verify { securityViewModel.setPrefLockAccessDocumentProvider(false) }
     }
 
     @Test
