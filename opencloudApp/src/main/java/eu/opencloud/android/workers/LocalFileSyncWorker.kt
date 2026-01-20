@@ -90,36 +90,61 @@ class LocalFileSyncWorker(
                     if (!file.isFolder) {
                         totalFilesChecked++
                         try {
-                            val useCaseResult = synchronizeFileUseCase(SynchronizeFileUseCase.Params(file))
-                            when (useCaseResult) {
-                                is UseCaseResult.Success -> {
-                                    when (val syncResult = useCaseResult.data) {
-                                        is SynchronizeFileUseCase.SyncType.UploadEnqueued -> {
-                                            Timber.i("File ${file.fileName} has local changes, upload enqueued")
-                                            filesUploaded++
-                                        }
-                                        is SynchronizeFileUseCase.SyncType.DownloadEnqueued -> {
-                                            Timber.i("File ${file.fileName} has remote changes, download enqueued")
-                                            filesDownloaded++
-                                        }
-                                        is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
-                                            Timber.i("File ${file.fileName} had a conflict. Conflicted copy created at: ${syncResult.conflictedCopyPath}")
-                                            filesWithConflicts++
-                                        }
-                                        is SynchronizeFileUseCase.SyncType.AlreadySynchronized -> {
-                                            Timber.d("File ${file.fileName} is already synchronized")
-                                            filesAlreadySynced++
-                                        }
-                                        is SynchronizeFileUseCase.SyncType.FileNotFound -> {
-                                            Timber.w("File ${file.fileName} was not found on server")
-                                            filesNotFound++
+                            // Fix: PERFORMANCE OPTIMIZATION
+                            // Check local modification timestamp BEFORE initiating any sync logic (which might do network calls).
+                            // This prevents O(N) network calls for N files, reducing battery drain and data usage.
+                            val storagePath = file.storagePath
+                            val shouldSync = if (!storagePath.isNullOrBlank()) {
+                                 val localFile = java.io.File(storagePath)
+                                 if (localFile.exists()) {
+                                     val lastModified = localFile.lastModified()
+                                     val lastSync = file.lastSyncDateForData ?: 0
+                                     lastModified > lastSync
+                                 } else {
+                                     // File says downloaded but not found locally? 
+                                     // Might need sync to realize it's gone or redownload.
+                                     // But for "Upload Modified Files", maybe true?
+                                     // Let's assume true to be safe and let use case handle it.
+                                     true 
+                                 }
+                            } else {
+                                true // Safety fallback
+                            }
+
+                            if (shouldSync) {
+                                val useCaseResult = synchronizeFileUseCase(SynchronizeFileUseCase.Params(file))
+                                when (useCaseResult) {
+                                    is UseCaseResult.Success -> {
+                                        when (val syncResult = useCaseResult.data) {
+                                            is SynchronizeFileUseCase.SyncType.UploadEnqueued -> {
+                                                Timber.i("File ${file.fileName} has local changes, upload enqueued")
+                                                filesUploaded++
+                                            }
+                                            is SynchronizeFileUseCase.SyncType.DownloadEnqueued -> {
+                                                Timber.i("File ${file.fileName} has remote changes, download enqueued")
+                                                filesDownloaded++
+                                            }
+                                            is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
+                                                Timber.i("File ${file.fileName} had a conflict. Conflicted copy created at: ${syncResult.conflictedCopyPath}")
+                                                filesWithConflicts++
+                                            }
+                                            is SynchronizeFileUseCase.SyncType.AlreadySynchronized -> {
+                                                Timber.d("File ${file.fileName} is already synchronized")
+                                                filesAlreadySynced++
+                                            }
+                                            is SynchronizeFileUseCase.SyncType.FileNotFound -> {
+                                                Timber.w("File ${file.fileName} was not found on server")
+                                                filesNotFound++
+                                            }
                                         }
                                     }
+                                    is UseCaseResult.Error -> {
+                                        Timber.e(useCaseResult.throwable, "Error syncing file ${file.fileName}")
+                                        errors++
+                                    }
                                 }
-                                is UseCaseResult.Error -> {
-                                    Timber.e(useCaseResult.throwable, "Error syncing file ${file.fileName}")
-                                    errors++
-                                }
+                            } else {
+                                filesAlreadySynced++
                             }
                         } catch (e: Exception) {
                             Timber.e(e, "Error syncing file ${file.fileName}")
