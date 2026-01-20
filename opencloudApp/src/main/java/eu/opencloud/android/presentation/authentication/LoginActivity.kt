@@ -666,11 +666,17 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
 
         val clientRegistrationInfo = authenticationViewModel.registerClient.value?.peekContent()?.getStoredData()
 
-        val clientAuth = if (clientRegistrationInfo?.clientId != null && clientRegistrationInfo.clientSecret != null) {
-            OAuthUtils.getClientAuth(clientRegistrationInfo.clientSecret as String, clientRegistrationInfo.clientId)
-
+        // Determine clientId and clientSecret
+        val (clientId, clientSecret) = if (clientRegistrationInfo?.clientId != null && clientRegistrationInfo.clientSecret != null) {
+            Pair(clientRegistrationInfo.clientId, clientRegistrationInfo.clientSecret as String)
         } else {
-            OAuthUtils.getClientAuth(getString(R.string.oauth2_client_secret), getString(R.string.oauth2_client_id))
+            Pair(getString(R.string.oauth2_client_id), getString(R.string.oauth2_client_secret))
+        }
+
+        val clientAuth = if (clientSecret.isEmpty()) {
+            ""
+        } else {
+            OAuthUtils.getClientAuth(clientSecret, clientId)
         }
 
         // Use oidc discovery one, or build an oauth endpoint using serverBaseUrl + Setup string.

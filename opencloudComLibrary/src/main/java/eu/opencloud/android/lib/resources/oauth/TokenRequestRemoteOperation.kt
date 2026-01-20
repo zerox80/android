@@ -54,7 +54,9 @@ class TokenRequestRemoteOperation(
 
             val postMethod = PostMethod(URL(tokenRequestParams.tokenEndpoint), requestBody)
 
-            postMethod.addRequestHeader(AUTHORIZATION_HEADER, tokenRequestParams.clientAuth)
+            if (tokenRequestParams.clientAuth.isNotEmpty()) {
+                postMethod.addRequestHeader(AUTHORIZATION_HEADER, tokenRequestParams.clientAuth)
+            }
 
             val status = client.executeHttpMethod(postMethod)
 

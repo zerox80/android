@@ -60,7 +60,8 @@ import static org.koin.java.KoinJavaComponent.inject;
 /**
  * Authenticator for openCloud accounts.
  *
- * Controller class accessed from the system AccountManager, providing integration of openCloud accounts with the
+ * Controller class accessed from the system AccountManager, providing
+ * integration of openCloud accounts with the
  * Android system.
  */
 public class AccountAuthenticator extends AbstractAccountAuthenticator {
@@ -84,8 +85,8 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
      */
     @Override
     public Bundle addAccount(AccountAuthenticatorResponse response,
-                             String accountType, String authTokenType,
-                             String[] requiredFeatures, Bundle options) {
+            String accountType, String authTokenType,
+            String[] requiredFeatures, Bundle options) {
         Timber.i("Adding account with type " + accountType + " and auth token " + authTokenType);
 
         final Bundle bundle = new Bundle();
@@ -120,7 +121,7 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
      */
     @Override
     public Bundle confirmCredentials(AccountAuthenticatorResponse response,
-                                     Account account, Bundle options) {
+            Account account, Bundle options) {
         try {
             validateAccountType(account.type);
         } catch (AuthenticatorException e) {
@@ -141,7 +142,7 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
 
     @Override
     public Bundle editProperties(AccountAuthenticatorResponse response,
-                                 String accountType) {
+            String accountType) {
         return null;
     }
 
@@ -150,7 +151,7 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
      */
     @Override
     public Bundle getAuthToken(AccountAuthenticatorResponse accountAuthenticatorResponse,
-                               Account account, String authTokenType, Bundle options) {
+            Account account, String authTokenType, Bundle options) {
         /// validate parameters
         try {
             validateAccountType(account.type);
@@ -168,7 +169,8 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             // Basic
             accessToken = accountManager.getPassword(account);
         } else {
-            // OAuth, gets an auth token from the AccountManager's cache. If no auth token is cached for
+            // OAuth, gets an auth token from the AccountManager's cache. If no auth token
+            // is cached for
             // this account, null will be returned
             accessToken = accountManager.peekAuthToken(account, authTokenType);
             if (accessToken == null && canBeRefreshed(authTokenType) && clientSecretIsValid(accountManager, account)) {
@@ -184,13 +186,15 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             return result;
         }
 
-        /// if not stored, return Intent to access the LoginActivity and UPDATE the token for the account
+        /// if not stored, return Intent to access the LoginActivity and UPDATE the
+        /// token for the account
         return prepareBundleToAccessLoginActivity(accountAuthenticatorResponse, account, authTokenType, options);
     }
 
     /**
      * Check if the client has expired or not.
-     * If the client has expired, we can not refresh the token and user needs to re-authenticate.
+     * If the client has expired, we can not refresh the token and user needs to
+     * re-authenticate.
      *
      * @return true if the client is still valid
      */
@@ -220,7 +224,7 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
 
     @Override
     public Bundle hasFeatures(AccountAuthenticatorResponse response,
-                              Account account, String[] features) {
+            Account account, String[] features) {
         final Bundle result = new Bundle();
         result.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, true);
         return result;
@@ -228,7 +232,7 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
 
     @Override
     public Bundle updateCredentials(AccountAuthenticatorResponse response,
-                                    Account account, String authTokenType, Bundle options) {
+            Account account, String authTokenType, Bundle options) {
         final Intent intent = new Intent(mContext, LoginActivity.class);
         intent.putExtra(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE,
                 response);
@@ -265,9 +269,10 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             throws UnsupportedAuthTokenTypeException {
         if (!authTokenType.equals(MainApp.Companion.getAuthTokenType()) &&
                 !authTokenType.equals(AccountTypeUtils.getAuthTokenTypePass(MainApp.Companion.getAccountType())) &&
-                !authTokenType.equals(AccountTypeUtils.getAuthTokenTypeAccessToken(MainApp.Companion.getAccountType())) &&
-                !authTokenType.equals(AccountTypeUtils.getAuthTokenTypeRefreshToken(MainApp.Companion.getAccountType()))
-        ) {
+                !authTokenType.equals(AccountTypeUtils.getAuthTokenTypeAccessToken(MainApp.Companion.getAccountType()))
+                &&
+                !authTokenType
+                        .equals(AccountTypeUtils.getAuthTokenTypeRefreshToken(MainApp.Companion.getAccountType()))) {
             throw new UnsupportedAuthTokenTypeException();
         }
     }
@@ -309,15 +314,13 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
     }
 
     private boolean canBeRefreshed(String authTokenType) {
-        return (authTokenType.equals(AccountTypeUtils.getAuthTokenTypeAccessToken(MainApp.Companion.
-                getAccountType())));
+        return (authTokenType.equals(AccountTypeUtils.getAuthTokenTypeAccessToken(MainApp.Companion.getAccountType())));
     }
 
     private String refreshToken(
             Account account,
             String authTokenType,
-            AccountManager accountManager
-    ) {
+            AccountManager accountManager) {
 
         // Prepare everything to perform the token request
         String refreshToken = accountManager.getUserData(account, KEY_OAUTH2_REFRESH_TOKEN);
@@ -333,10 +336,11 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
         String baseUrl = accountManager.getUserData(account, AccountUtils.Constants.KEY_OC_BASE_URL);
 
         // OIDC Discovery
-        @NotNull Lazy<OIDCDiscoveryUseCase> oidcDiscoveryUseCase = inject(OIDCDiscoveryUseCase.class);
+        @NotNull
+        Lazy<OIDCDiscoveryUseCase> oidcDiscoveryUseCase = inject(OIDCDiscoveryUseCase.class);
         OIDCDiscoveryUseCase.Params oidcDiscoveryUseCaseParams = new OIDCDiscoveryUseCase.Params(baseUrl);
-        UseCaseResult<OIDCServerConfiguration> oidcServerConfigurationUseCaseResult =
-                oidcDiscoveryUseCase.getValue().invoke(oidcDiscoveryUseCaseParams);
+        UseCaseResult<OIDCServerConfiguration> oidcServerConfigurationUseCaseResult = oidcDiscoveryUseCase.getValue()
+                .invoke(oidcDiscoveryUseCaseParams);
 
         String tokenEndpoint;
 
@@ -363,7 +367,8 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             tokenEndpoint = oidcServerConfigurationUseCaseResult.getDataOrNull().getTokenEndpoint();
 
             if (oidcServerConfigurationUseCaseResult.getDataOrNull() != null &&
-            oidcServerConfigurationUseCaseResult.getDataOrNull().isTokenEndpointAuthMethodSupportedClientSecretPost()) {
+                    oidcServerConfigurationUseCaseResult.getDataOrNull()
+                            .isTokenEndpointAuthMethodSupportedClientSecretPost()) {
                 clientIdForRequest = clientId;
                 clientSecretForRequest = clientSecret;
             }
@@ -374,7 +379,12 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             tokenEndpoint = baseUrl + File.separator + mContext.getString(R.string.oauth2_url_endpoint_access);
         }
 
-        String clientAuth = OAuthUtils.Companion.getClientAuth(clientSecret, clientId);
+        String clientAuth;
+        if (clientSecret.isEmpty()) {
+            clientAuth = "";
+        } else {
+            clientAuth = OAuthUtils.Companion.getClientAuth(clientSecret, clientId);
+        }
 
         String scope = mContext.getResources().getString(R.string.oauth2_openid_scope);
 
@@ -385,11 +395,11 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
                 scope,
                 clientIdForRequest,
                 clientSecretForRequest,
-                refreshToken
-        );
+                refreshToken);
 
         // Token exchange
-        @NotNull Lazy<RequestTokenUseCase> requestTokenUseCase = inject(RequestTokenUseCase.class);
+        @NotNull
+        Lazy<RequestTokenUseCase> requestTokenUseCase = inject(RequestTokenUseCase.class);
         RequestTokenUseCase.Params requestTokenParams = new RequestTokenUseCase.Params(oauthTokenRequest);
         UseCaseResult<TokenResponse> tokenResponseResult = requestTokenUseCase.getValue().invoke(requestTokenParams);
 
@@ -398,7 +408,8 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             return handleSuccessfulRefreshToken(safeTokenResponse,
                     account, authTokenType, accountManager, refreshToken);
         } else {
-            Timber.e(tokenResponseResult.getThrowableOrNull(), "OAuth request to refresh access token failed. Preparing to access Login Activity");
+            Timber.e(tokenResponseResult.getThrowableOrNull(),
+                    "OAuth request to refresh access token failed. Preparing to access Login Activity");
             return null;
         }
     }
@@ -408,34 +419,33 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
             Account account,
             String authTokenType,
             AccountManager accountManager,
-            String oldRefreshToken
-    ) {
-            String newAccessToken = tokenResponse.getAccessToken();
-            accountManager.setAuthToken(account, authTokenType, newAccessToken);
+            String oldRefreshToken) {
+        String newAccessToken = tokenResponse.getAccessToken();
+        accountManager.setAuthToken(account, authTokenType, newAccessToken);
 
-            String refreshTokenToUseFromNowOn;
-            if (tokenResponse.getRefreshToken() != null) {
-                refreshTokenToUseFromNowOn = tokenResponse.getRefreshToken();
-            } else {
-                refreshTokenToUseFromNowOn = oldRefreshToken;
-            }
-            accountManager.setUserData(account, KEY_OAUTH2_REFRESH_TOKEN, refreshTokenToUseFromNowOn);
-
-            Timber.d("Token refreshed successfully. New access token: [ %s ]. New refresh token: [ %s ]",
-                    newAccessToken, refreshTokenToUseFromNowOn);
-
-            return newAccessToken;
+        String refreshTokenToUseFromNowOn;
+        if (tokenResponse.getRefreshToken() != null) {
+            refreshTokenToUseFromNowOn = tokenResponse.getRefreshToken();
+        } else {
+            refreshTokenToUseFromNowOn = oldRefreshToken;
         }
+        accountManager.setUserData(account, KEY_OAUTH2_REFRESH_TOKEN, refreshTokenToUseFromNowOn);
+
+        Timber.d("Token refreshed successfully. New access token: [ %s ]. New refresh token: [ %s ]",
+                newAccessToken, refreshTokenToUseFromNowOn);
+
+        return newAccessToken;
+    }
 
     /**
-     * Return bundle with intent to access LoginActivity and UPDATE the token for the account
+     * Return bundle with intent to access LoginActivity and UPDATE the token for
+     * the account
      */
     private Bundle prepareBundleToAccessLoginActivity(
             AccountAuthenticatorResponse accountAuthenticatorResponse,
             Account account,
             String authTokenType,
-            Bundle options
-    ) {
+            Bundle options) {
         final Intent intent = new Intent(mContext, LoginActivity.class);
         intent.putExtra(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE,
                 accountAuthenticatorResponse);
@@ -443,8 +453,7 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
         intent.putExtra(AuthenticatorConstants.EXTRA_ACCOUNT, account);
         intent.putExtra(
                 AuthenticatorConstants.EXTRA_ACTION,
-                AuthenticatorConstants.ACTION_UPDATE_EXPIRED_TOKEN
-        );
+                AuthenticatorConstants.ACTION_UPDATE_EXPIRED_TOKEN);
 
         final Bundle bundle = new Bundle();
         bundle.putParcelable(AccountManager.KEY_INTENT, intent);
