@@ -27,7 +27,6 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
-import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import eu.opencloud.android.MainApp
 import eu.opencloud.android.R
@@ -42,10 +41,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Worker that periodically syncs locally modified files to the cloud.
  * This is an opt-in feature that can be enabled in Security Settings.
- * 
+ *
  * It monitors all downloaded files and checks if they have been modified locally.
  * If a file has been modified, it uploads the new version to the server.
- * 
+ *
  * Shows a notification with sync progress and results.
  */
 class LocalFileSyncWorker(
@@ -61,7 +60,7 @@ class LocalFileSyncWorker(
 
     override suspend fun doWork(): Result {
         Timber.i("LocalFileSyncWorker started")
-        
+
         createNotificationChannel()
 
         return try {
@@ -101,11 +100,11 @@ class LocalFileSyncWorker(
                                      val lastSync = file.lastSyncDateForData ?: 0
                                      lastModified > lastSync
                                  } else {
-                                     // File says downloaded but not found locally? 
+                                     // File says downloaded but not found locally?
                                      // Might need sync to realize it's gone or redownload.
                                      // But for "Upload Modified Files", maybe true?
                                      // Let's assume true to be safe and let use case handle it.
-                                     true 
+                                     true
                                  }
                             } else {
                                 true // Safety fallback
@@ -125,7 +124,10 @@ class LocalFileSyncWorker(
                                                 filesDownloaded++
                                             }
                                             is SynchronizeFileUseCase.SyncType.ConflictResolvedWithCopy -> {
-                                                Timber.i("File ${file.fileName} had a conflict. Conflicted copy created at: ${syncResult.conflictedCopyPath}")
+                                                Timber.i(
+                                                    "File ${file.fileName} had a conflict. " +
+                                                            "Conflicted copy created at: ${syncResult.conflictedCopyPath}"
+                                                )
                                                 filesWithConflicts++
                                             }
                                             is SynchronizeFileUseCase.SyncType.AlreadySynchronized -> {
@@ -163,7 +165,7 @@ class LocalFileSyncWorker(
             }
 
             Timber.i("LocalFileSyncWorker completed: $summary")
-            
+
             // Only show notification if something changed
             if (filesUploaded > 0 || filesDownloaded > 0 || filesWithConflicts > 0) {
                 showCompletionNotification(summary)

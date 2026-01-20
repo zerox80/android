@@ -66,7 +66,7 @@ import eu.opencloud.android.usecases.synchronization.SynchronizeFolderUseCase
 import eu.opencloud.android.usecases.transfers.downloads.DownloadFileUseCase
 import eu.opencloud.android.usecases.transfers.uploads.UploadFilesFromSystemUseCase
 import eu.opencloud.android.utils.FileStorageUtils
-import eu.opencloud.android.utils.NotificationUtils
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

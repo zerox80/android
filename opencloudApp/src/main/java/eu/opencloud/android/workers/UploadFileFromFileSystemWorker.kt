@@ -247,7 +247,6 @@ class UploadFileFromFileSystemWorker(
                 val preferLocal = preferencesProvider.getBoolean(
                     SettingsSecurityFragment.PREFERENCE_PREFER_LOCAL_ON_CONFLICT, false
                 )
-                
                 if (!preferLocal) {
                     // User wants conflicted copy behavior - create a local copy before uploading
                     Timber.i("Conflict detected and user prefers conflicted copy. Creating copy of local file.")
@@ -303,14 +302,12 @@ class UploadFileFromFileSystemWorker(
         return File(file.parent, conflictedName).absolutePath
     }
 
-    private fun copyLocalFile(sourcePath: String, destPath: String): Boolean {
-        return try {
-            File(sourcePath).copyTo(File(destPath), overwrite = false)
-            true
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to copy local file from $sourcePath to $destPath")
-            false
-        }
+    private fun copyLocalFile(sourcePath: String, destPath: String): Boolean = try {
+        File(sourcePath).copyTo(File(destPath), overwrite = false)
+        true
+    } catch (e: Exception) {
+        Timber.e(e, "Failed to copy local file from $sourcePath to $destPath")
+        false
     }
 
     private fun uploadDocument(client: OpenCloudClient) {

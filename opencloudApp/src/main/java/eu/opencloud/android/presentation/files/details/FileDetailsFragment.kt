@@ -61,7 +61,7 @@ import eu.opencloud.android.presentation.authentication.EXTRA_ACCOUNT
 import eu.opencloud.android.presentation.authentication.EXTRA_ACTION
 import eu.opencloud.android.presentation.authentication.LoginActivity
 import eu.opencloud.android.presentation.common.UIResult
-import eu.opencloud.android.presentation.conflicts.ConflictsResolveActivity
+
 import eu.opencloud.android.presentation.files.details.FileDetailsViewModel.ActionsInDetailsView.NONE
 import eu.opencloud.android.presentation.files.details.FileDetailsViewModel.ActionsInDetailsView.SYNC
 import eu.opencloud.android.presentation.files.details.FileDetailsViewModel.ActionsInDetailsView.SYNC_AND_OPEN

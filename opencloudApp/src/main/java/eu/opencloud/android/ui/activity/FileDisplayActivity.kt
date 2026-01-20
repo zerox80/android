@@ -55,7 +55,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import androidx.work.WorkManager
 import eu.opencloud.android.AppRater
 import eu.opencloud.android.BuildConfig
 import eu.opencloud.android.MainApp
@@ -95,7 +94,6 @@ import eu.opencloud.android.presentation.accounts.ManageAccountsViewModel
 import eu.opencloud.android.presentation.authentication.AccountUtils.getCurrentOpenCloudAccount
 import eu.opencloud.android.presentation.capabilities.CapabilityViewModel
 import eu.opencloud.android.presentation.common.UIResult
-import eu.opencloud.android.presentation.conflicts.ConflictsResolveActivity
 import eu.opencloud.android.presentation.files.details.FileDetailsFragment
 import eu.opencloud.android.presentation.files.filelist.MainEmptyListFragment
 import eu.opencloud.android.presentation.files.filelist.MainFileListFragment
@@ -113,13 +111,10 @@ import eu.opencloud.android.presentation.transfers.TransfersViewModel
 import eu.opencloud.android.presentation.settings.security.SettingsSecurityFragment
 import eu.opencloud.android.providers.WorkManagerProvider
 import eu.opencloud.android.syncadapter.FileSyncAdapter
-import eu.opencloud.android.ui.dialog.FileAlreadyExistsDialog
 import eu.opencloud.android.ui.fragment.FileFragment
 import eu.opencloud.android.ui.fragment.TaskRetainerFragment
 import eu.opencloud.android.ui.helpers.FilesUploadHelper
 import eu.opencloud.android.ui.preview.PreviewAudioFragment
-import eu.opencloud.android.ui.preview.PreviewImageActivity
-import eu.opencloud.android.ui.preview.PreviewImageFragment
 import eu.opencloud.android.ui.preview.PreviewTextFragment
 import eu.opencloud.android.ui.preview.PreviewVideoActivity
 import eu.opencloud.android.usecases.synchronization.SynchronizeFileUseCase
@@ -283,27 +278,24 @@ class FileDisplayActivity : FileActivity(),
             AppRater.appLaunched(this, packageName)
         }
 
-
         checkNotificationPermission()
         checkManageExternalStoragePermission()
         Timber.v("onCreate() end")
     }
 
     private fun checkManageExternalStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!android.os.Environment.isExternalStorageManager()) {
-                val builder = AlertDialog.Builder(this)
-                builder.setTitle(getString(R.string.app_name))
-                builder.setMessage("To save offline files, the app needs access to all files.")
-                builder.setPositiveButton("Settings") { _, _ ->
-                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                    intent.addCategory("android.intent.category.DEFAULT")
-                    intent.data = Uri.parse("package:$packageName")
-                    startActivity(intent)
-                }
-                builder.setNegativeButton("Cancel", null)
-                builder.show()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !android.os.Environment.isExternalStorageManager()) {
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle(getString(R.string.app_name))
+            builder.setMessage("To save offline files, the app needs access to all files.")
+            builder.setPositiveButton("Settings") { _, _ ->
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                intent.addCategory("android.intent.category.DEFAULT")
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
             }
+            builder.setNegativeButton("Cancel", null)
+            builder.show()
         }
     }
 
@@ -346,7 +338,6 @@ class FileDisplayActivity : FileActivity(),
             isLightUser = manageAccountsViewModel.checkUserLight(account.name)
             isMultiPersonal = capabilitiesViewModel.checkMultiPersonal()
             navigateTo(fileListOption, initialState = true)
-
         }
 
         startListeningToOperations()
@@ -396,12 +387,12 @@ class FileDisplayActivity : FileActivity(),
                 syncProfileOperation.syncUserProfile()
                 val workManagerProvider = WorkManagerProvider(context = baseContext)
                 workManagerProvider.enqueueAvailableOfflinePeriodicWorker()
-                
+
                 // Enqueue Download Everything worker if enabled
                 if (sharedPreferences.getBoolean(SettingsSecurityFragment.PREFERENCE_DOWNLOAD_EVERYTHING, false)) {
                     workManagerProvider.enqueueDownloadEverythingWorker()
                 }
-                
+
                 // Enqueue Local File Sync worker if enabled
                 if (sharedPreferences.getBoolean(SettingsSecurityFragment.PREFERENCE_AUTO_SYNC, false)) {
                     workManagerProvider.enqueueLocalFileSyncWorker()
@@ -763,10 +754,7 @@ class FileDisplayActivity : FileActivity(),
          *    2. close FAB if open (only if drawer isn't open)
          *    3. navigate up (only if drawer and FAB aren't open)
          */
-        if (isDrawerOpen() && isFabOpen) {
-            // close drawer first
-            super.onBackPressed()
-        } else if (isDrawerOpen() && !isFabOpen) {
+        if (isDrawerOpen()) {
             // close drawer
             super.onBackPressed()
         } else if (!isDrawerOpen() && isFabOpen) {

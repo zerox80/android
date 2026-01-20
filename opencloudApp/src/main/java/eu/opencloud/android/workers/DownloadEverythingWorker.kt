@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Worker that downloads ALL files from all accounts for offline access.
  * This is an opt-in feature that can be enabled in Security Settings.
- * 
+ *
  * This worker:
  * 1. Iterates through all connected accounts
  * 2. Discovers all spaces (personal + project) for each account
@@ -78,7 +78,7 @@ class DownloadEverythingWorker(
 
     override suspend fun doWork(): Result {
         Timber.i("DownloadEverythingWorker started")
-        
+
         // Create notification channel and show initial notification
         createNotificationChannel()
         updateNotification("Starting download of all files...")
@@ -98,7 +98,11 @@ class DownloadEverythingWorker(
                 try {
                     // Get capabilities for account
                     val capabilities = getStoredCapabilitiesUseCase(GetStoredCapabilitiesUseCase.Params(accountName))
-                    val spacesAvailableForAccount = AccountUtils.isSpacesFeatureAllowedForAccount(appContext, account, capabilities)
+                    val spacesAvailableForAccount = AccountUtils.isSpacesFeatureAllowedForAccount(
+                        appContext,
+                        account,
+                        capabilities
+                    )
 
                     if (!spacesAvailableForAccount) {
                         // Account does not support spaces - process legacy root
@@ -125,7 +129,8 @@ class DownloadEverythingWorker(
                 }
             }
 
-            val summary = "Done! Files: $totalFilesFound, Downloaded: $filesDownloaded, Already local: $filesAlreadyLocal, Skipped: $filesSkipped, Folders: $foldersProcessed"
+            val summary = "Done! Files: $totalFilesFound, Downloaded: $filesDownloaded, " +
+                    "Already local: $filesAlreadyLocal, Skipped: $filesSkipped, Folders: $foldersProcessed"
             Timber.i("DownloadEverythingWorker completed: $summary")
             updateNotification(summary)
 
