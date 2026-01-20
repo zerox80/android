@@ -42,12 +42,15 @@ import eu.opencloud.android.presentation.security.biometric.BiometricManager
 import eu.opencloud.android.presentation.security.passcode.PassCodeActivity
 import eu.opencloud.android.presentation.security.pattern.PatternActivity
 import eu.opencloud.android.presentation.settings.SettingsFragment.Companion.removePreferenceFromScreen
+import eu.opencloud.android.providers.WorkManagerProvider
+import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class SettingsSecurityFragment : PreferenceFragmentCompat() {
 
     // ViewModel
     private val securityViewModel by viewModel<SettingsSecurityViewModel>()
+    private val workManagerProvider: WorkManagerProvider by inject()
 
     private var screenSecurity: PreferenceScreen? = null
     private var prefPasscode: CheckBoxPreference? = null
@@ -56,6 +59,9 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
     private var prefLockApplication: ListPreference? = null
     private var prefLockAccessDocumentProvider: CheckBoxPreference? = null
     private var prefTouchesWithOtherVisibleWindows: CheckBoxPreference? = null
+    private var prefDownloadEverything: CheckBoxPreference? = null
+    private var prefAutoSync: CheckBoxPreference? = null
+    private var prefPreferLocalOnConflict: CheckBoxPreference? = null
 
     private val enablePasscodeLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -132,6 +138,9 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
         }
         prefLockAccessDocumentProvider = findPreference(PREFERENCE_LOCK_ACCESS_FROM_DOCUMENT_PROVIDER)
         prefTouchesWithOtherVisibleWindows = findPreference(PREFERENCE_TOUCHES_WITH_OTHER_VISIBLE_WINDOWS)
+        prefDownloadEverything = findPreference(PREFERENCE_DOWNLOAD_EVERYTHING)
+        prefAutoSync = findPreference(PREFERENCE_AUTO_SYNC)
+        prefPreferLocalOnConflict = findPreference(PREFERENCE_PREFER_LOCAL_ON_CONFLICT)
 
         prefPasscode?.isVisible = !securityViewModel.isSecurityEnforcedEnabled()
         prefPattern?.isVisible = !securityViewModel.isSecurityEnforcedEnabled()
@@ -222,6 +231,60 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
             }
             true
         }
+
+        // Download Everything Feature
+        prefDownloadEverything?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
+            if (newValue as Boolean) {
+                activity?.let {
+                    AlertDialog.Builder(it)
+                        .setTitle(getString(R.string.download_everything_warning_title))
+                        .setMessage(getString(R.string.download_everything_warning_message))
+                        .setNegativeButton(getString(R.string.common_no), null)
+                        .setPositiveButton(getString(R.string.common_yes)) { _, _ ->
+                            securityViewModel.setDownloadEverything(true)
+                            prefDownloadEverything?.isChecked = true
+                            workManagerProvider.enqueueDownloadEverythingWorker()
+                        }
+                        .show()
+                        .avoidScreenshotsIfNeeded()
+                }
+                return@setOnPreferenceChangeListener false
+            } else {
+                securityViewModel.setDownloadEverything(false)
+                workManagerProvider.cancelDownloadEverythingWorker()
+                true
+            }
+        }
+
+        // Auto-Sync Feature
+        prefAutoSync?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
+            if (newValue as Boolean) {
+                activity?.let {
+                    AlertDialog.Builder(it)
+                        .setTitle(getString(R.string.auto_sync_warning_title))
+                        .setMessage(getString(R.string.auto_sync_warning_message))
+                        .setNegativeButton(getString(R.string.common_no), null)
+                        .setPositiveButton(getString(R.string.common_yes)) { _, _ ->
+                            securityViewModel.setAutoSync(true)
+                            prefAutoSync?.isChecked = true
+                            workManagerProvider.enqueueLocalFileSyncWorker()
+                        }
+                        .show()
+                        .avoidScreenshotsIfNeeded()
+                }
+                return@setOnPreferenceChangeListener false
+            } else {
+                securityViewModel.setAutoSync(false)
+                workManagerProvider.cancelLocalFileSyncWorker()
+                true
+            }
+        }
+
+        // Conflict Resolution Strategy
+        prefPreferLocalOnConflict?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
+            securityViewModel.setPreferLocalOnConflict(newValue as Boolean)
+            true
+        }
     }
 
     private fun enableBiometricAndLockApplication() {
@@ -246,5 +309,8 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
         const val PREFERENCE_TOUCHES_WITH_OTHER_VISIBLE_WINDOWS = "touches_with_other_visible_windows"
         const val EXTRAS_LOCK_ENFORCED = "EXTRAS_LOCK_ENFORCED"
         const val PREFERENCE_LOCK_ATTEMPTS = "PrefLockAttempts"
+        const val PREFERENCE_DOWNLOAD_EVERYTHING = "download_everything"
+        const val PREFERENCE_AUTO_SYNC = "auto_sync_local_changes"
+        const val PREFERENCE_PREFER_LOCAL_ON_CONFLICT = "prefer_local_on_conflict"
     }
 }
