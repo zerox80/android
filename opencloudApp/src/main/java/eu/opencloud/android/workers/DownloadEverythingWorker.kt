@@ -120,7 +120,7 @@ class DownloadEverythingWorker(
                         spaces.forEachIndexed { spaceIndex, space ->
                             Timber.i("Processing space ${spaceIndex + 1}/${spaces.size}: ${space.name}")
                             updateNotification("Space ${spaceIndex + 1}/${spaces.size}: ${space.name}")
-                            
+
                             processSpaceRoot(accountName, ROOT_PATH, space.root.id)
                         }
                     }
@@ -148,7 +148,7 @@ class DownloadEverythingWorker(
     private fun processSpaceRoot(accountName: String, remotePath: String, spaceId: String?) {
         try {
             Timber.i("Processing space root: remotePath=$remotePath, spaceId=$spaceId")
-            
+
             // First refresh the root folder from server to ensure DB has latest data
             fileRepository.refreshFolder(
                 remotePath = remotePath,
@@ -156,22 +156,22 @@ class DownloadEverythingWorker(
                 spaceId = spaceId,
                 isActionSetFolderAvailableOfflineOrSynchronize = false
             )
-            
+
             // Now get the root folder from local database
             val rootFolder = getFileByRemotePathUseCase(
                 GetFileByRemotePathUseCase.Params(accountName, remotePath, spaceId)
             ).getDataOrNull()
-            
+
             if (rootFolder == null) {
                 Timber.w("Root folder not found after refresh for spaceId=$spaceId")
                 return
             }
-            
+
             Timber.i("Got root folder with id=${rootFolder.id}, remotePath=${rootFolder.remotePath}")
-            
+
             // Process the root folder recursively
             processFolderRecursively(accountName, rootFolder, spaceId)
-            
+
         } catch (e: Exception) {
             Timber.e(e, "Error processing space root: spaceId=$spaceId")
         }
@@ -188,10 +188,10 @@ class DownloadEverythingWorker(
                 Timber.w("Folder ${folder.remotePath} has no id, skipping")
                 return
             }
-            
+
             foldersProcessed++
             Timber.d("Processing folder: ${folder.remotePath} (id=$folderId)")
-            
+
             // First refresh this folder from server
             try {
                 fileRepository.refreshFolder(
@@ -203,10 +203,10 @@ class DownloadEverythingWorker(
             } catch (e: Exception) {
                 Timber.e(e, "Error refreshing folder ${folder.remotePath}")
             }
-            
+
             // Now get ALL content from local database (this returns everything, not just changes)
             val folderContent = fileRepository.getFolderContent(folderId)
-            
+
             Timber.d("Folder ${folder.remotePath} contains ${folderContent.size} items")
 
             folderContent.forEach { item ->
@@ -218,7 +218,7 @@ class DownloadEverythingWorker(
                     processFile(accountName, item)
                 }
             }
-            
+
             // Update notification periodically
             if (foldersProcessed % 5 == 0) {
                 updateNotification("Scanning: $foldersProcessed folders, $totalFilesFound files found")
@@ -234,7 +234,7 @@ class DownloadEverythingWorker(
      */
     private fun processFile(accountName: String, file: OCFile) {
         totalFilesFound++
-        
+
         try {
             if (file.isAvailableLocally) {
                 // File is already downloaded
@@ -251,7 +251,7 @@ class DownloadEverythingWorker(
                     Timber.d("Download already enqueued or skipped: ${file.fileName}")
                 }
             }
-            
+
             // Update notification periodically (every 20 files)
             if (totalFilesFound % 20 == 0) {
                 updateNotification("Found: $totalFilesFound files, $filesDownloaded queued for download")
@@ -298,7 +298,7 @@ class DownloadEverythingWorker(
         const val DOWNLOAD_EVERYTHING_WORKER = "DOWNLOAD_EVERYTHING_WORKER"
         const val repeatInterval: Long = 6L
         val repeatIntervalTimeUnit: TimeUnit = TimeUnit.HOURS
-        
+
         private const val NOTIFICATION_CHANNEL_ID = "download_everything_channel"
         private const val NOTIFICATION_ID = 9001
     }

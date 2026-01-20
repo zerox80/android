@@ -41,6 +41,7 @@ import java.net.URL
  * @author David A. Velasco
  * @author David González Verdugo
  */
+@Suppress("UnusedPrivateProperty")
 class GetRemoteUserAvatarOperation(private val avatarDimension: Int) : RemoteOperation<RemoteAvatarData>() {
     override fun run(client: OpenCloudClient): RemoteOperationResult<RemoteAvatarData> {
         var inputStream: InputStream? = null
