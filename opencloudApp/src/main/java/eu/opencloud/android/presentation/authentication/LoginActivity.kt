@@ -682,15 +682,15 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         // Use oidc discovery one, or build an oauth endpoint using serverBaseUrl + Setup string.
         val tokenEndPoint: String
 
-        var clientId: String? = null
-        var clientSecret: String? = null
+        var clientIdForRequest: String? = null
+        var clientSecretForRequest: String? = null
 
         val serverInfo = authenticationViewModel.serverInfo.value?.peekContent()?.getStoredData()
         if (serverInfo is ServerInfo.OIDCServer) {
             tokenEndPoint = serverInfo.oidcServerConfiguration.tokenEndpoint
             if (serverInfo.oidcServerConfiguration.isTokenEndpointAuthMethodSupportedClientSecretPost()) {
-                clientId = clientRegistrationInfo?.clientId ?: contextProvider.getString(R.string.oauth2_client_id)
-                clientSecret = clientRegistrationInfo?.clientSecret ?: contextProvider.getString(R.string.oauth2_client_secret)
+                clientIdForRequest = clientRegistrationInfo?.clientId ?: contextProvider.getString(R.string.oauth2_client_id)
+                clientSecretForRequest = clientRegistrationInfo?.clientSecret ?: contextProvider.getString(R.string.oauth2_client_secret)
             }
         } else {
             tokenEndPoint = "$serverBaseUrl${File.separator}${contextProvider.getString(R.string.oauth2_url_endpoint_access)}"
@@ -703,8 +703,8 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
             tokenEndpoint = tokenEndPoint,
             clientAuth = clientAuth,
             scope = scope,
-            clientId = clientId,
-            clientSecret = clientSecret,
+            clientId = clientIdForRequest,
+            clientSecret = clientSecretForRequest,
             authorizationCode = authorizationCode,
             redirectUri = OAuthUtils.buildRedirectUri(applicationContext).toString(),
             codeVerifier = authenticationViewModel.codeVerifier

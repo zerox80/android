@@ -27,7 +27,9 @@ import eu.opencloud.android.testutil.oauth.OC_CLIENT_REGISTRATION
 import eu.opencloud.android.testutil.oauth.OC_CLIENT_REGISTRATION_REQUEST
 import eu.opencloud.android.testutil.oauth.OC_OIDC_SERVER_CONFIGURATION
 import eu.opencloud.android.testutil.oauth.OC_TOKEN_REQUEST_ACCESS
+import eu.opencloud.android.testutil.oauth.OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT
 import eu.opencloud.android.testutil.oauth.OC_TOKEN_REQUEST_REFRESH
+import eu.opencloud.android.testutil.oauth.OC_TOKEN_REQUEST_REFRESH_PUBLIC_CLIENT
 import eu.opencloud.android.testutil.oauth.OC_TOKEN_RESPONSE
 
 val OC_REMOTE_OIDC_DISCOVERY_RESPONSE = OIDCDiscoveryResponse(
@@ -63,6 +65,32 @@ val OC_REMOTE_TOKEN_REQUEST_PARAMS_REFRESH = TokenRequestParams.RefreshToken(
     clientId = null,
     clientSecret = null,
     refreshToken = OC_TOKEN_REQUEST_REFRESH.refreshToken
+)
+
+/**
+ * Test fixtures for public PKCE clients (RFC 7636).
+ * Public clients MUST NOT send Authorization header during token exchange.
+ */
+val OC_REMOTE_TOKEN_REQUEST_PARAMS_ACCESS_PUBLIC_CLIENT = TokenRequestParams.Authorization(
+    tokenEndpoint = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.tokenEndpoint,
+    clientAuth = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.clientAuth, // Empty string
+    grantType = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.grantType,
+    scope = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.scope,
+    clientId = null,
+    clientSecret = null,
+    authorizationCode = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.authorizationCode,
+    redirectUri = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.redirectUri,
+    codeVerifier = OC_TOKEN_REQUEST_ACCESS_PUBLIC_CLIENT.codeVerifier
+)
+
+val OC_REMOTE_TOKEN_REQUEST_PARAMS_REFRESH_PUBLIC_CLIENT = TokenRequestParams.RefreshToken(
+    tokenEndpoint = OC_TOKEN_REQUEST_REFRESH_PUBLIC_CLIENT.tokenEndpoint,
+    clientAuth = OC_TOKEN_REQUEST_REFRESH_PUBLIC_CLIENT.clientAuth, // Empty string
+    grantType = OC_TOKEN_REQUEST_REFRESH_PUBLIC_CLIENT.grantType,
+    scope = OC_TOKEN_REQUEST_REFRESH_PUBLIC_CLIENT.scope,
+    clientId = null,
+    clientSecret = null,
+    refreshToken = OC_TOKEN_REQUEST_REFRESH_PUBLIC_CLIENT.refreshToken
 )
 
 val OC_REMOTE_TOKEN_RESPONSE = TokenResponse(
