@@ -114,9 +114,13 @@ import eu.opencloud.android.syncadapter.FileSyncAdapter
 import eu.opencloud.android.ui.fragment.FileFragment
 import eu.opencloud.android.ui.fragment.TaskRetainerFragment
 import eu.opencloud.android.ui.helpers.FilesUploadHelper
+import eu.opencloud.android.ui.dialog.FileAlreadyExistsDialog
 import eu.opencloud.android.ui.preview.PreviewAudioFragment
+import eu.opencloud.android.ui.preview.PreviewImageActivity
+import eu.opencloud.android.ui.preview.PreviewImageFragment
 import eu.opencloud.android.ui.preview.PreviewTextFragment
 import eu.opencloud.android.ui.preview.PreviewVideoActivity
+import androidx.work.WorkManager
 import eu.opencloud.android.usecases.synchronization.SynchronizeFileUseCase
 import eu.opencloud.android.usecases.transfers.downloads.DownloadFileUseCase
 import eu.opencloud.android.utils.PreferenceUtils

@@ -117,6 +117,16 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_security, rootKey)
+        initializePreferences(rootKey)
+        configureLockPreferences()
+        configureBiometricPreference()
+        configureSecurityPreferences()
+        configureDownloadAndSyncPreferences()
+    }
+
+
+    @Suppress("UnusedParameter")
+    private fun initializePreferences(rootKey: String?) {
         screenSecurity = findPreference(SCREEN_SECURITY)
         prefPasscode = findPreference(PassCodeActivity.PREFERENCE_SET_PASSCODE)
         prefPattern = findPreference(PatternActivity.PREFERENCE_SET_PATTERN)
@@ -144,7 +154,9 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
 
         prefPasscode?.isVisible = !securityViewModel.isSecurityEnforcedEnabled()
         prefPattern?.isVisible = !securityViewModel.isSecurityEnforcedEnabled()
+    }
 
+    private fun configureLockPreferences() {
         // Passcode lock
         prefPasscode?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
             if (securityViewModel.isPatternSet()) {
@@ -178,8 +190,9 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
             }
             false
         }
+    }
 
-        // Biometric lock
+    private fun configureBiometricPreference() {
         if (prefBiometric != null) {
             if (!BiometricManager.isHardwareDetected()) { // Biometric not supported
                 screenSecurity?.removePreferenceFromScreen(prefBiometric)
@@ -201,8 +214,12 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
         }
 
         // Lock application
-        if (prefPasscode?.isChecked == false && prefPattern?.isChecked == false) { prefLockApplication?.isEnabled = false }
+        if (prefPasscode?.isChecked == false && prefPattern?.isChecked == false) {
+            prefLockApplication?.isEnabled = false
+        }
+    }
 
+    private fun configureSecurityPreferences() {
         // Lock access from document provider
         prefLockAccessDocumentProvider?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
             securityViewModel.setPrefLockAccessDocumentProvider(true)
@@ -231,7 +248,9 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
             }
             true
         }
+    }
 
+    private fun configureDownloadAndSyncPreferences() {
         // Download Everything Feature
         prefDownloadEverything?.setOnPreferenceChangeListener { _: Preference?, newValue: Any ->
             if (newValue as Boolean) {
