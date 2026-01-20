@@ -26,12 +26,10 @@ import eu.opencloud.android.domain.BaseUseCaseWithResult
 import eu.opencloud.android.domain.exceptions.FileNotFoundException
 import eu.opencloud.android.domain.files.FileRepository
 import eu.opencloud.android.domain.files.model.OCFile
-import eu.opencloud.android.domain.files.usecases.SaveConflictUseCase
+
 import eu.opencloud.android.presentation.settings.security.SettingsSecurityFragment
 import eu.opencloud.android.usecases.transfers.downloads.DownloadFileUseCase
 import eu.opencloud.android.usecases.transfers.uploads.UploadFileInConflictUseCase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import timber.log.Timber
 import java.io.File
 import java.text.SimpleDateFormat
@@ -42,7 +40,6 @@ import java.util.UUID
 class SynchronizeFileUseCase(
     private val downloadFileUseCase: DownloadFileUseCase,
     private val uploadFileInConflictUseCase: UploadFileInConflictUseCase,
-    private val saveConflictUseCase: SaveConflictUseCase,
     private val fileRepository: FileRepository,
     private val preferencesProvider: SharedPreferencesProvider,
 ) : BaseUseCaseWithResult<SynchronizeFileUseCase.SyncType, SynchronizeFileUseCase.Params>() {
@@ -51,13 +48,13 @@ class SynchronizeFileUseCase(
         val fileToSynchronize = params.fileToSynchronize
         val accountName: String = fileToSynchronize.owner
 
-        // Fix: Use correct dispatcher usage. `CoroutineScope(Dispatchers.IO).run` blocks the current thread if called with `runBlocking` or similar upstream, 
-        // but here it returns a value, so it implies this is synchronous code? 
+        // Fix: Use correct dispatcher usage. `CoroutineScope(Dispatchers.IO).run` blocks the current thread
+        // if called with `runBlocking` or similar upstream, but here it returns a value, so it implies this is synchronous code?
         // `BaseUseCaseWithResult` usually runs in a background thread if invoked correctly?
-        // The original code used `CoroutineScope(Dispatchers.IO).run`, which creates a scope and runs the block. 
-        // But `run` is incorrect here if we want to return from the function. 
+        // The original code used `CoroutineScope(Dispatchers.IO).run`, which creates a scope and runs the block.
+        // But `run` is incorrect here if we want to return from the function.
         // `CoroutineScope(Dispatchers.IO).run` returns the result of the block.
-        // Actually `run` is a standard library extension on T. 
+        // Actually `run` is a standard library extension on T.
         // `CoroutineScope(Dispatchers.IO)` creates a stand-alone scope. `run` executes the block on *that object*.
         // It does NOT switch threads! `CoroutineScope(Dispatchers.IO)` just creates a new scope object.
         // The original code was likely running on the caller's thread!
@@ -66,20 +63,23 @@ class SynchronizeFileUseCase(
         // This is a subtle but massive bug in the original code too if it expected async/threading.
         // However, `BaseUseCaseWithResult` might be handling threading?
         // Let's assume we just want to fix the logic bugs for now.
-        
+
         // 1. Check local state first to avoid network calls if possible (optimization)
         // Check if file has changed locally by reading ACTUAL file timestamp from filesystem
         val storagePath = fileToSynchronize.storagePath
-        val localFile = if (storagePath != null) File(storagePath) else null
+        val localFile = storagePath?.let { File(it) }
         val fileExistsLocally = localFile?.exists() == true
-        
+
         var changedLocally = false
         if (fileExistsLocally) {
             val actualFileModificationTime = localFile!!.lastModified()
             // Fix: Null safety for lastSyncDateForData
             changedLocally = actualFileModificationTime > (fileToSynchronize.lastSyncDateForData ?: 0)
-            
-            Timber.d("File ${fileToSynchronize.fileName}: localTimestamp=$actualFileModificationTime, lastSync=${fileToSynchronize.lastSyncDateForData}, changedLocally=$changedLocally")
+
+            Timber.d(
+                "File ${fileToSynchronize.fileName}: localTimestamp=$actualFileModificationTime, " +
+                        "lastSync=${fileToSynchronize.lastSyncDateForData}, changedLocally=$changedLocally"
+            )
         }
 
         // 2. Perform propfind to check remote state
@@ -91,11 +91,11 @@ class SynchronizeFileUseCase(
             )
         } catch (exception: FileNotFoundException) {
             Timber.i(exception, "File does not exist anymore in remote")
-            
+
             // 2.1 File does not exist anymore in remote
             // If it still exists locally, but file has different path, another operation could have been done simultaneously
             val localDbFile = fileToSynchronize.id?.let { fileRepository.getFileById(it) }
-            
+
             if (localDbFile != null && (localDbFile.remotePath == fileToSynchronize.remotePath && localDbFile.spaceId == fileToSynchronize.spaceId)) {
                fileRepository.deleteFiles(listOf(fileToSynchronize), true)
             }
@@ -118,7 +118,7 @@ class SynchronizeFileUseCase(
                 val preferLocal = preferencesProvider.getBoolean(
                     SettingsSecurityFragment.PREFERENCE_PREFER_LOCAL_ON_CONFLICT, false
                 )
-                
+
                 if (preferLocal) {
                     // User prefers local version - upload it (overwrites remote)
                     Timber.i("File ${fileToSynchronize.fileName} has conflict. User prefers local version, uploading.")
@@ -130,7 +130,7 @@ class SynchronizeFileUseCase(
                     val conflictedCopyPath = createConflictedCopyPath(fileToSynchronize)
                     // Fix: Rename safety
                     val renamed = renameLocalFile(fileToSynchronize.storagePath!!, conflictedCopyPath)
-                    
+
                     if (renamed) {
                         Timber.i("Local file renamed to conflicted copy: $conflictedCopyPath")
                         // Refresh parent folder so the conflicted copy appears in the file list
@@ -144,7 +144,7 @@ class SynchronizeFileUseCase(
                         } catch (e: Exception) {
                             Timber.w(e, "Failed to refresh parent folder after creating conflicted copy")
                         }
-                        
+
                         // Only download if renamed successfully
                         val uuid = requestForDownload(accountName, fileToSynchronize)
                         SyncType.ConflictResolvedWithCopy(uuid, conflictedCopyPath)
@@ -158,7 +158,7 @@ class SynchronizeFileUseCase(
                 }
             } else if (changedRemotely) {
                 // 5.2 File has changed ONLY remotely -> download new version
-                // Fix: Check if we have unsaved local changes that we missed? 
+                // Fix: Check if we have unsaved local changes that we missed?
                 // (Already covered by changedLocally check above)
                 Timber.i("File ${fileToSynchronize.fileName} has changed remotely. Let's download the new version")
                 val uuid = requestForDownload(accountName, fileToSynchronize)
@@ -208,13 +208,11 @@ class SynchronizeFileUseCase(
         return File(file.parent, conflictedName).absolutePath
     }
 
-    private fun renameLocalFile(oldPath: String, newPath: String): Boolean {
-        return try {
-            File(oldPath).renameTo(File(newPath))
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to rename local file from $oldPath to $newPath")
-            false
-        }
+    private fun renameLocalFile(oldPath: String, newPath: String): Boolean = try {
+        File(oldPath).renameTo(File(newPath))
+    } catch (e: Exception) {
+        Timber.e(e, "Failed to rename local file from $oldPath to $newPath")
+        false
     }
 
     data class Params(

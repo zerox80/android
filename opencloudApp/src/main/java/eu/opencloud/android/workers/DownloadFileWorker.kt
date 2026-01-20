@@ -112,7 +112,12 @@ class DownloadFileWorker(
      */
     private val finalLocationForFile: String
         get() = ocFile.storagePath.takeUnless { it.isNullOrBlank() }
-            ?: localStorageProvider.getDefaultSavePathFor(accountName = account.name, remotePath = ocFile.remotePath, spaceId = ocFile.spaceId, spaceName = spaceName)
+            ?: localStorageProvider.getDefaultSavePathFor(
+                accountName = account.name,
+                remotePath = ocFile.remotePath,
+                spaceId = ocFile.spaceId,
+                spaceName = spaceName
+            )
 
     override suspend fun doWork(): Result {
         if (!areParametersValid()) return Result.failure()
@@ -316,7 +321,10 @@ class DownloadFileWorker(
     }
 
     private fun getClientForThisDownload(): OpenCloudClient = SingleSessionManager.getDefaultSingleton()
-        .getClientFor(OpenCloudAccount(AccountUtils.getOpenCloudAccountByName(appContext, account.name), appContext), appContext)
+        .getClientFor(
+            OpenCloudAccount(AccountUtils.getOpenCloudAccountByName(appContext, account.name), appContext),
+            appContext
+        )
 
     override fun onTransferProgress(
         progressRate: Long,
@@ -330,7 +338,8 @@ class DownloadFileWorker(
             downloadRemoteFileOperation.removeDatatransferProgressListener(this)
         }
 
-        val percent: Int = if (totalToTransfer == -1L) -1 else (100.0 * totalTransferredSoFar.toDouble() / totalToTransfer.toDouble()).toInt()
+        val percent: Int = if (totalToTransfer == -1L) -1 else (100.0 * totalTransferredSoFar.toDouble() /
+                totalToTransfer.toDouble()).toInt()
         if (percent == lastPercent) return
 
         // Set current progress. Observers will listen.
