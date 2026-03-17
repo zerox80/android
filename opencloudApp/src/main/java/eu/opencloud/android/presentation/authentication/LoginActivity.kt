@@ -312,7 +312,13 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         authenticationViewModel.accountDiscovery.observe(this) {
             if (it.peekContent() is UIResult.Success) {
                 notifyDocumentsProviderRoots(applicationContext)
-                launchFileDisplayActivity()
+                if (authenticationViewModel.launchedFromDeepLink ||
+                    (isTaskRoot && accountAuthenticatorResponse == null)
+                ) {
+                    launchFileDisplayActivity()
+                } else {
+                    finish()
+                }
             } else {
                 binding.authStatusText.run {
                     text = context.getString(R.string.login_account_preparing)
