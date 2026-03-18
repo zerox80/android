@@ -52,6 +52,11 @@ const val KEY_FEATURE_SPACES = "KEY_FEATURE_SPACES"
  */
 const val KEY_PREFERRED_USERNAME = "oc_preferred_username"
 
+/**
+ * OIDC issuer URL from webfinger, used for token refresh OIDC discovery
+ */
+const val KEY_OIDC_ISSUER = "oc_oidc_issuer"
+
 const val KEY_CLIENT_REGISTRATION_CLIENT_ID = "client_id"
 const val KEY_CLIENT_REGISTRATION_CLIENT_SECRET = "client_secret"
 const val KEY_CLIENT_REGISTRATION_CLIENT_EXPIRATION_DATE = "client_secret_expires_at"
