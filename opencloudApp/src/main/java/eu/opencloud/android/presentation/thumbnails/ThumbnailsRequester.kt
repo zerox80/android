@@ -188,8 +188,16 @@ object ThumbnailsRequester : KoinComponent {
 
         override fun intercept(chain: Interceptor.Chain): Response {
             val openCloudClient = clientManager.getClientForCoilThumbnails(accountName)
+            val credentials = openCloudClient.credentials
+                ?: return Response.Builder()
+                    .request(chain.request())
+                    .protocol(okhttp3.Protocol.HTTP_1_1)
+                    .code(401)
+                    .message("No credentials available")
+                    .body(okhttp3.ResponseBody.create(null, ""))
+                    .build()
             val requestHeaders = hashMapOf(
-                AUTHORIZATION_HEADER to openCloudClient.credentials.headerAuth,
+                AUTHORIZATION_HEADER to credentials.headerAuth,
                 ACCEPT_ENCODING_HEADER to ACCEPT_ENCODING_IDENTITY,
                 USER_AGENT_HEADER to SingleSessionManager.getUserAgent(),
                 OC_X_REQUEST_ID to RandomUtils.generateRandomUUID(),
