@@ -48,6 +48,7 @@ import androidx.core.widget.doAfterTextChanged
 import eu.opencloud.android.BuildConfig
 import eu.opencloud.android.MainApp.Companion.accountType
 import eu.opencloud.android.R
+import eu.opencloud.android.data.authentication.KEY_OIDC_ISSUER
 import eu.opencloud.android.data.authentication.KEY_PREFERRED_USERNAME
 import eu.opencloud.android.data.authentication.KEY_USER_ID
 import eu.opencloud.android.databinding.AccountSetupBinding
@@ -59,7 +60,6 @@ import eu.opencloud.android.domain.exceptions.OpencloudVersionNotSupportedExcept
 import eu.opencloud.android.domain.exceptions.SSLErrorCode
 import eu.opencloud.android.domain.exceptions.SSLErrorException
 import eu.opencloud.android.domain.exceptions.ServerNotReachableException
-import eu.opencloud.android.domain.exceptions.StateMismatchException
 import eu.opencloud.android.domain.exceptions.UnauthorizedException
 import eu.opencloud.android.domain.server.model.ServerInfo
 import eu.opencloud.android.extensions.checkPasscodeEnforced
@@ -312,7 +312,13 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         authenticationViewModel.accountDiscovery.observe(this) {
             if (it.peekContent() is UIResult.Success) {
                 notifyDocumentsProviderRoots(applicationContext)
-                launchFileDisplayActivity()
+                if (authenticationViewModel.launchedFromDeepLink ||
+                    (isTaskRoot && accountAuthenticatorResponse == null)
+                ) {
+                    launchFileDisplayActivity()
+                } else {
+                    finish()
+                }
             } else {
                 binding.authStatusText.run {
                     text = context.getString(R.string.login_account_preparing)
@@ -559,10 +565,17 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         resultBundle = intent.extras
         setResult(Activity.RESULT_OK, intent)
 
+        val account = Account(accountName, contextProvider.getString(R.string.account_type))
+        val am = AccountManager.get(this)
+
         // Store preferred_username from id_token for login_hint on re-login
-        preferredUsername?.let { prefUsername ->
-            val account = Account(accountName, contextProvider.getString(R.string.account_type))
-            AccountManager.get(this).setUserData(account, KEY_PREFERRED_USERNAME, prefUsername)
+        preferredUsername?.let { am.setUserData(account, KEY_PREFERRED_USERNAME, it) }
+
+        // Store OIDC issuer from webfinger so AccountAuthenticator can do OIDC discovery
+        // against the correct IDP (not the cloud server which may proxy stale config)
+        val serverInfo = authenticationViewModel.serverInfo.value?.peekContent()?.getStoredData()
+        if (serverInfo is ServerInfo.OIDCServer) {
+            am.setUserData(account, KEY_OIDC_ISSUER, serverInfo.oidcServerConfiguration.issuer)
         }
 
         authenticationViewModel.discoverAccount(accountName = accountName, discoveryNeeded = loginAction == ACTION_CREATE)
@@ -686,6 +699,10 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         super.onNewIntent(intent)
         intent?.let {
             Timber.d("onNewIntent received with data: ${it.data}")
+            if (!::binding.isInitialized) {
+                Timber.w("onNewIntent received before binding initialized, ignoring OAuth response")
+                return
+            }
             setIntent(it)
             handleGetAuthorizationCodeResponse(it)
         }
@@ -696,8 +713,9 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
         val state = intent.data?.getQueryParameter("state")
 
         if (state != authenticationViewModel.oidcState) {
-            Timber.e("OAuth request to get authorization code failed. State mismatching, maybe somebody is trying a CSRF attack.")
-            updateOAuthStatusIconAndText(StateMismatchException())
+            Timber.e("OAuth: state mismatch (expected=${authenticationViewModel.oidcState}, got=$state). Finishing.")
+            showMessageInSnackbar(message = getString(R.string.auth_oauth_error))
+            finish()
         } else {
             if (authorizationCode != null) {
                 Timber.d("Authorization code received [$authorizationCode]. Let's exchange it for access token")
@@ -996,6 +1014,10 @@ class LoginActivity : AppCompatActivity(), SslUntrustedCertDialog.OnSslUntrusted
     }
 
     private fun updateOAuthStatusIconAndText(authorizationException: Throwable?) {
+        if (!::binding.isInitialized) {
+            Timber.w("updateOAuthStatusIconAndText called before binding initialized, ignoring")
+            return
+        }
         binding.serverStatusText.run {
             setCompoundDrawablesWithIntrinsicBounds(R.drawable.common_error, 0, 0, 0)
             text =

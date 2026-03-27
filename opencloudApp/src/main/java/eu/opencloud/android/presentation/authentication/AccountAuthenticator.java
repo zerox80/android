@@ -55,6 +55,7 @@ import static eu.opencloud.android.data.authentication.AuthenticationConstantsKt
 import static eu.opencloud.android.data.authentication.AuthenticationConstantsKt.KEY_CLIENT_REGISTRATION_CLIENT_SECRET;
 import static eu.opencloud.android.data.authentication.AuthenticationConstantsKt.KEY_OAUTH2_REFRESH_TOKEN;
 import static eu.opencloud.android.data.authentication.AuthenticationConstantsKt.KEY_OAUTH2_SCOPE;
+import static eu.opencloud.android.data.authentication.AuthenticationConstantsKt.KEY_OIDC_ISSUER;
 import static eu.opencloud.android.presentation.authentication.AuthenticatorConstants.KEY_AUTH_TOKEN_TYPE;
 import static org.koin.java.KoinJavaComponent.inject;
 
@@ -333,9 +334,13 @@ public class AccountAuthenticator extends AbstractAccountAuthenticator {
 
         String baseUrl = accountManager.getUserData(account, AccountUtils.Constants.KEY_OC_BASE_URL);
 
-        // OIDC Discovery
+        // OIDC Discovery: prefer the stored webfinger issuer (points to the real IDP),
+        // fall back to baseUrl for accounts created before webfinger support.
+        String oidcIssuer = accountManager.getUserData(account, KEY_OIDC_ISSUER);
+        String discoveryUrl = (oidcIssuer != null) ? oidcIssuer : baseUrl;
+
         @NotNull Lazy<OIDCDiscoveryUseCase> oidcDiscoveryUseCase = inject(OIDCDiscoveryUseCase.class);
-        OIDCDiscoveryUseCase.Params oidcDiscoveryUseCaseParams = new OIDCDiscoveryUseCase.Params(baseUrl);
+        OIDCDiscoveryUseCase.Params oidcDiscoveryUseCaseParams = new OIDCDiscoveryUseCase.Params(discoveryUrl);
         UseCaseResult<OIDCServerConfiguration> oidcServerConfigurationUseCaseResult =
                 oidcDiscoveryUseCase.getValue().invoke(oidcDiscoveryUseCaseParams);
 
