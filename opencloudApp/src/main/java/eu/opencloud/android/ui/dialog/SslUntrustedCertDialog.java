@@ -143,14 +143,14 @@ public class SslUntrustedCertDialog extends DialogFragment {
         Button ok = mView.findViewById(R.id.ok);
         ok.setOnClickListener(new OnCertificateTrusted());
 
-        if (m509Certificate == null) {
-            ok.setText(android.R.string.ok);
-            mView.findViewById(R.id.question).setVisibility(View.GONE);
-        }
-
         Button cancel = mView.findViewById(R.id.btnCancel);
         cancel.setOnClickListener(new OnCertificateNotTrusted());
 
+        if (m509Certificate == null) {
+            ok.setText(android.R.string.ok);
+            mView.findViewById(R.id.question).setVisibility(View.GONE);
+            cancel.setVisibility(View.GONE);
+        }
         Button details = mView.findViewById(R.id.details_btn);
         details.setOnClickListener(new OnClickListener() {
 
@@ -226,7 +226,7 @@ public class SslUntrustedCertDialog extends DialogFragment {
                     ((OnSslUntrustedCertListener) activity).onFailedSavingCertificate();
                     Timber.e(e, "Server certificate could not be saved in the known-servers trust store ");
                 }
-            } else {
+            } else if (mHandler == null) {
                 ((OnSslUntrustedCertListener) getActivity()).onCancelCertificate();
             }
         }
