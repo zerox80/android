@@ -148,6 +148,11 @@ public class RemoteOperationResult<T>
 
         } else if (e instanceof SSLException || e instanceof RuntimeException) {
             if (e instanceof SSLPeerUnverifiedException) {
+                CertificateCombinedException sslPeerUnverifiedException =
+                        new CertificateCombinedException(null);
+                sslPeerUnverifiedException.setSslPeerUnverifiedException((SSLPeerUnverifiedException) e);
+                sslPeerUnverifiedException.initCause(e);
+                mException = sslPeerUnverifiedException;
                 mCode = ResultCode.SSL_RECOVERABLE_PEER_UNVERIFIED;
             } else {
                 CertificateCombinedException se = getCertificateCombinedException(e);
