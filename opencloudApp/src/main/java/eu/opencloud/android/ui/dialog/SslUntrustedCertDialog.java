@@ -226,7 +226,7 @@ public class SslUntrustedCertDialog extends DialogFragment {
                     ((OnSslUntrustedCertListener) activity).onFailedSavingCertificate();
                     Timber.e(e, "Server certificate could not be saved in the known-servers trust store ");
                 }
-            } else {
+            } else if (mHandler == null) {
                 ((OnSslUntrustedCertListener) getActivity()).onCancelCertificate();
             }
         }
