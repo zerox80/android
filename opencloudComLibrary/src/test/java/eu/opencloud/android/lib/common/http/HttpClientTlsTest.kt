@@ -111,17 +111,6 @@ class HttpClientTlsTest {
         assertSame(peerUnverifiedException, combinedException.sslPeerUnverifiedException)
     }
 
-    private inline fun <reified T : Throwable> findCause(throwable: Throwable): T? {
-        var current: Throwable? = throwable
-        while (current != null) {
-            if (current is T) {
-                return current
-            }
-            current = current.cause
-        }
-        return null
-    }
-
     private fun resetKnownServersStore() {
         context.deleteFile(KNOWN_SERVERS_STORE_FILE)
 
