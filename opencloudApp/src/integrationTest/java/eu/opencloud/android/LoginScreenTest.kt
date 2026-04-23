@@ -18,7 +18,7 @@ class LoginScreenTest : TestCase(
     kaspressoBuilder = Kaspresso.Builder.advanced {
         flakySafetyParams = FlakySafetyParams.custom(
             timeoutMs = 20_000L,
-            intervalMs = 500L
+            intervalMs = 100L
         )
     }
 ) {
@@ -61,19 +61,16 @@ class LoginScreenTest : TestCase(
                     }
                 }
             }
-            step("wait chrome login page") {
-                flakySafely(timeoutMs = 10_000) {
-                    LoginScreen {
-                        loginButton.isDisplayed()
-                    }
-                }
-            }
             step("login") {
                 LoginScreen {
+                    username.isDisplayed()
+                    password.isDisplayed()
+                    loginButton.isDisplayed()
                     username.typeText("alan")
                     password.typeText("demo")
                     loginButton.click()
                     keepAccessForeverBtn {
+                        isDisplayed()
                         isClickable()
                         click()
                     }
