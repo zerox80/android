@@ -37,6 +37,7 @@ class LoginScreenTest : TestCase(
             adbServer.performCmd("adb", listOf("reverse", "tcp:9200", "tcp:9200"))
         }.after {
             adbServer.performCmd("adb", listOf("shell", "am", "force-stop", "com.android.chrome"))
+            adbServer.performCmd("adb", listOf("reverse", "--remove", "tcp:9200"))
         }.run {
             step("set opencloud url") {
                 StartScreen {
