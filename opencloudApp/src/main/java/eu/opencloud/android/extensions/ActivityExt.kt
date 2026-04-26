@@ -33,7 +33,6 @@ import android.net.Uri
 import android.text.method.LinkMovementMethod
 import android.util.TypedValue
 import android.view.inputmethod.InputMethodManager
-import android.webkit.MimeTypeMap
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast

@@ -23,6 +23,7 @@ class ScopedStorageProviderTest {
     private lateinit var scopedStorageProvider: ScopedStorageProvider
 
     private lateinit var context: Context
+    private lateinit var preferencesProvider: SharedPreferencesProvider
     private lateinit var filesDir: File
 
     private val spaceId = OC_SPACE_PROJECT_WITH_IMAGE.id
@@ -40,13 +41,15 @@ class ScopedStorageProviderTest {
     @Before
     fun setUp() {
         context = mockk()
+        preferencesProvider = mockk()
         filesDir = Files.createTempDirectory("scoped-storage-provider").toFile().apply { deleteOnExit() }
         directory = File(filesDir, "dir").apply {
             mkdirs()
             File(this, "child.bin").writeBytes(ByteArray(expectedSizeOfDirectoryValue.toInt()))
         }
 
-        scopedStorageProvider = spyk(ScopedStorageProvider(rootFolderName, context))
+        scopedStorageProvider = spyk(ScopedStorageProvider(rootFolderName, context, preferencesProvider))
+        every { preferencesProvider.getBoolean("enable_file_manager_access", false) } returns false
         every { context.getExternalFilesDir(null) } returns filesDir
         every { context.filesDir } returns filesDir
     }

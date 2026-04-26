@@ -459,7 +459,9 @@ class DownloadEverythingWorker(
         )
 
         when (val useCaseResult = synchronizeFileUseCase(SynchronizeFileUseCase.Params(file))) {
-            is UseCaseResult.Success -> handleStaleLocalSyncResult(file, useCaseResult.data)
+            is UseCaseResult.Success -> {
+                handleStaleLocalSyncResult(file, useCaseResult.data)
+            }
             is UseCaseResult.Error -> {
                 filesSkipped++
                 Timber.e(useCaseResult.throwable, "Error synchronizing stale local file ${file.fileName}")

@@ -26,14 +26,20 @@ import java.io.File
 
 class ScopedStorageProvider(
     rootFolderName: String,
-    private val context: Context
+    private val context: Context,
+    private val preferencesProvider: SharedPreferencesProvider
 ) : LocalStorageProvider(rootFolderName) {
 
     private var rootFolderPath: String? = null
 
+    constructor(rootFolderName: String, context: Context) : this(
+        rootFolderName = rootFolderName,
+        context = context,
+        preferencesProvider = OCSharedPreferencesProvider(context)
+    )
+
     override fun getPrimaryStorageDirectory(): File {
-        val prefs = OCSharedPreferencesProvider(context)
-        val fileManagerAccessEnabled = prefs.getBoolean("enable_file_manager_access", false)
+        val fileManagerAccessEnabled = preferencesProvider.getBoolean("enable_file_manager_access", false)
 
         if (fileManagerAccessEnabled) {
             val mediaDir = context.externalMediaDirs.firstOrNull()

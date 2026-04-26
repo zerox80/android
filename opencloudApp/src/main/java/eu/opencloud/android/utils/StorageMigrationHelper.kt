@@ -29,7 +29,7 @@ object StorageMigrationHelper {
 
         try {
             newDir.parentFile?.mkdirs()
-            
+
             // Fast path: Try to rename the root directory
             if (oldDir.renameTo(newDir)) {
                 Timber.i("Successfully renamed root directory from $oldRootPath to $newRootPath")
@@ -48,13 +48,13 @@ object StorageMigrationHelper {
                     file.delete()
                 }
             }
-            
+
             // Clean up old root
             oldDir.deleteRecursively()
             Timber.i("Successfully moved files to $newRootPath")
             fileRepository.updateDownloadedFilesStorageDirectoryInStoragePath(oldRootPath, newRootPath)
             return@withContext true
-            
+
         } catch (e: Exception) {
             Timber.e(e, "Error migrating storage directory from $oldRootPath to $newRootPath")
             return@withContext false

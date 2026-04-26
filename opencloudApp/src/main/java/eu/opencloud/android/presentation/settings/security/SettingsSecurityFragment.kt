@@ -271,7 +271,7 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
                 } else {
                     "Disabling this will move existing offline files back to the hidden internal storage. This may take a moment."
                 }
-                
+
                 AlertDialog.Builder(it)
                     .setTitle(getString(R.string.prefs_enable_file_manager_access))
                     .setMessage(message)
@@ -281,13 +281,13 @@ class SettingsSecurityFragment : PreferenceFragmentCompat() {
                     }
                     .setPositiveButton(getString(R.string.common_yes)) { _, _ ->
                         val oldPath = localStorageProvider.getRootFolderPath()
-                        
+
                         // Update UI state
                         prefFileManagerAccess?.isChecked = isEnabled
                         localStorageProvider.invalidateCache()
-                        
+
                         val newPath = localStorageProvider.getRootFolderPath()
-                        
+
                         // Perform migration
                         lifecycleScope.launch {
                             StorageMigrationHelper.migrateStorageDirectory(
