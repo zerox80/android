@@ -211,6 +211,7 @@ class DownloadFileWorker(
             needsToUpdateThumbnail = true
             modificationTimestamp = downloadRemoteFileOperation.modificationTimestamp
             etag = downloadRemoteFileOperation.etag
+            remoteEtag = downloadRemoteFileOperation.etag
             storagePath = finalLocationForFile
             length = finalFile.length()
             // Use the file's actual mtime, not the current time. SynchronizeFileUseCase
