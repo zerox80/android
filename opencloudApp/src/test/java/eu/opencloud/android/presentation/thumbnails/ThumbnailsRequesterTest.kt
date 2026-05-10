@@ -43,6 +43,15 @@ class ThumbnailsRequesterTest {
     }
 
     @Test
+    fun `thumbnail cache token uses hash remote etag before etag`() {
+        val file = file(remoteEtag = "sha256:local-content-hash", etag = "local-etag")
+
+        val token = ThumbnailsRequester.getThumbnailCacheToken(file)
+
+        assertEquals("sha256:local-content-hash", token)
+    }
+
+    @Test
     fun `thumbnail cache token falls back to etag when remote etag is missing`() {
         val fileWithNullRemoteEtag = file(remoteEtag = null, etag = "local-etag")
         val fileWithBlankRemoteEtag = file(remoteEtag = " ", etag = "local-etag")

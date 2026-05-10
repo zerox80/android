@@ -117,6 +117,7 @@ class UploadFileFromContentUriWorker(
     private val cleanConflictUseCase: CleanConflictUseCase by inject()
 
     private var finalEtag: String = ""
+    private var finalContentHashToken: String? = null
 
     override suspend fun doWork(): Result = try {
         prepareFile()
@@ -348,6 +349,7 @@ class UploadFileFromContentUriWorker(
             }
 
             if (tusSucceeded) {
+                captureFinalContentHashTokenIfNeeded()
                 removeCacheFile()
                 Timber.d("TUS upload completed for %s", uploadPath)
                 return
@@ -363,6 +365,7 @@ class UploadFileFromContentUriWorker(
 
         Timber.d("Falling back to single PUT upload for %s", uploadPath)
         uploadPlainFile(client)
+        captureFinalContentHashTokenIfNeeded()
         clearTusState()
         removeCacheFile()
     }
@@ -399,6 +402,12 @@ class UploadFileFromContentUriWorker(
         } catch (e: Throwable) {
             Timber.w(e, "Could not resolve final ETag for %s after upload", uploadPath)
             ""
+        }
+    }
+
+    private fun captureFinalContentHashTokenIfNeeded() {
+        if (finalEtag.isBlank() && finalContentHashToken.isNullOrBlank()) {
+            finalContentHashToken = FileEtagCacheTokenResolver.sha256Token(File(cachePath))
         }
     }
 
@@ -479,11 +488,17 @@ class UploadFileFromContentUriWorker(
             )
         )
         file.getDataOrNull()?.let { ocFile ->
+            val resolvedEtags = FileEtagCacheTokenResolver.resolve(
+                serverEtag = finalEtag,
+                existingEtag = ocFile.etag,
+                existingRemoteEtag = ocFile.remoteEtag,
+                localContentHashToken = finalContentHashToken,
+            )
             val fileWithNewDetails = ocFile.copy(
                 storagePath = null,
                 needsToUpdateThumbnail = true,
-                etag = finalEtag,
-                remoteEtag = finalEtag,
+                etag = resolvedEtags.etag,
+                remoteEtag = resolvedEtags.remoteEtag,
                 length = fileSize,
                 modificationTimestamp = lastModified.toLongOrNull()?.times(1000L) ?: currentTime,
                 lastSyncDateForData = currentTime,
