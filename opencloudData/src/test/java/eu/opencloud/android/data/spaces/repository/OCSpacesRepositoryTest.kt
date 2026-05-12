@@ -176,6 +176,25 @@ class OCSpacesRepositoryTest {
     }
 
     @Test
+    fun `refreshSpacesForAccount clears local spaces when remote returns empty list`() {
+        every {
+            remoteSpacesDataSource.refreshSpacesForAccount(OC_ACCOUNT_NAME)
+        } returns emptyList()
+
+        ocSpacesRepository.refreshSpacesForAccount(OC_ACCOUNT_NAME)
+
+        verify(exactly = 1) {
+            remoteSpacesDataSource.refreshSpacesForAccount(OC_ACCOUNT_NAME)
+            localSpacesDataSource.deleteSpacesForAccount(OC_ACCOUNT_NAME)
+            localUserDataSource.saveQuotaForAccount(OC_ACCOUNT_NAME, OC_USER_QUOTA_WITHOUT_PERSONAL)
+        }
+        verify(exactly = 0) {
+            localSpacesDataSource.saveSpacesForAccount(any())
+            localCapabilitiesDataSource.getCapabilitiesForAccount(any())
+        }
+    }
+
+    @Test
     fun `getSpacesFromEveryAccountAsStream returns a Flow with a list of OCSpace`() = runTest {
         every {
             localSpacesDataSource.getSpacesFromEveryAccountAsStream()

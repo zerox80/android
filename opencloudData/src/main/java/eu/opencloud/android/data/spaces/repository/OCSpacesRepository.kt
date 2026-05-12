@@ -39,6 +39,12 @@ class OCSpacesRepository(
 ) : SpacesRepository {
     override fun refreshSpacesForAccount(accountName: String) {
         remoteSpacesDataSource.refreshSpacesForAccount(accountName).also { listOfSpaces ->
+            if (listOfSpaces.isEmpty()) {
+                localSpacesDataSource.deleteSpacesForAccount(accountName)
+                localUserDataSource.saveQuotaForAccount(accountName, unavailableQuota(accountName))
+                return@also
+            }
+
             localSpacesDataSource.saveSpacesForAccount(listOfSpaces)
             val personalSpace = listOfSpaces.find { it.isPersonal }
             val capabilities = localCapabilitiesDataSource.getCapabilitiesForAccount(accountName)
