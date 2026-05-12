@@ -46,26 +46,29 @@ class CreateTusUploadRemoteOperation(
             Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
-    override fun run(client: OpenCloudClient): RemoteOperationResult<CreationResult> = try {
-        // Determine TUS endpoint URL based on provided parameters
-        val targetFileUrl = if (!tusUrl.isNullOrBlank()) {
-            tusUrl
-        } else {
-            val baseCollection = (collectionUrlOverride
-                ?: client.userFilesWebDavUri.toString()).trim()
-            // Remove trailing slash - OpenCloud expects no slash on space endpoints
-            val resolvedCollection = buildCollectionUrl(baseCollection, remotePath).trimEnd('/')
-            Timber.d("TUS resolved collection: %s", resolvedCollection)
-            resolvedCollection
-        }
+    override fun run(client: OpenCloudClient): RemoteOperationResult<CreationResult> {
+        var creationUploadFile: RandomAccessFile? = null
+        return try {
+            // Determine TUS endpoint URL based on provided parameters
+            val targetFileUrl = if (!tusUrl.isNullOrBlank()) {
+                tusUrl
+            } else {
+                val baseCollection = (collectionUrlOverride
+                    ?: client.userFilesWebDavUri.toString()).trim()
+                // Remove trailing slash - OpenCloud expects no slash on space endpoints
+                val resolvedCollection = buildCollectionUrl(baseCollection, remotePath).trimEnd('/')
+                Timber.d("TUS resolved collection: %s", resolvedCollection)
+                resolvedCollection
+            }
 
             Timber.d("TUS Creation URL: %s", targetFileUrl)
 
             // Prepare request body first
             val postBody: RequestBody = if (useCreationWithUpload && (firstChunkSize ?: 0L) > 0L) {
                 // creation-with-upload: include first chunk
-                // Don't use .use{} here - the channel must stay open for OkHttp to read
+                // Keep the channel open until OkHttp finishes reading the body.
                 val raf = RandomAccessFile(file, "r")
+                creationUploadFile = raf
                 val channel: FileChannel = raf.channel
                 ChunkFromFileRequestBody(
                     file = file,
@@ -158,10 +161,17 @@ class CreateTusUploadRemoteOperation(
                 Timber.w("TUS creation failed with status: %d", status)
                 RemoteOperationResult<CreationResult>(postMethod).apply { data = null }
             }
-    } catch (e: Exception) {
-        val result = RemoteOperationResult<CreationResult>(e)
-        Timber.e(e, "TUS creation operation failed")
-        result
+        } catch (e: Exception) {
+            val result = RemoteOperationResult<CreationResult>(e)
+            Timber.e(e, "TUS creation operation failed")
+            result
+        } finally {
+            try {
+                creationUploadFile?.close()
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to close TUS creation upload file")
+            }
+        }
     }
 
     private fun isSuccess(status: Int) =
