@@ -380,7 +380,7 @@ class UploadFileFromContentUriWorker(
         }
 
         if (totalSize <= 0) return
-        val percent: Int = (100.0 * offset.toDouble() / totalSize.toDouble()).toInt()
+        val percent: Int = UploadProgressCalculator.percent(offset, totalSize)
         if (percent == lastPercent) return
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -479,7 +479,7 @@ class UploadFileFromContentUriWorker(
             }
         }
 
-        val percent: Int = (100.0 * totalTransferredSoFar.toDouble() / totalToTransfer.toDouble()).toInt()
+        val percent: Int = UploadProgressCalculator.percent(totalTransferredSoFar, totalToTransfer)
         if (percent == lastPercent) return
 
         // Set current progress. Observers will listen.
